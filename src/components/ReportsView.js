@@ -7,7 +7,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 
 const ReportsView = () => {
   const { state } = useStateContext();
-  const { bookings, services, expenses, customers, staff, resources, transactions } = state;
+  const { bookings, services, expenses, customers, staff, resources } = state;
 
   const reportsData = useMemo(() => {
     const incomeByMonth = {};

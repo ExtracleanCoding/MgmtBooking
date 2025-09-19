@@ -4,7 +4,7 @@ import DaySummaryModal from './DaySummaryModal';
 
 const CalendarView = () => {
   const { state } = useStateContext();
-  const { bookings, customers, services } = state;
+  const { bookings, customers } = state;
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState('month'); // 'month', 'week', 'day'
   const [isDaySummaryModalOpen, setIsDaySummaryModalOpen] = useState(false);
