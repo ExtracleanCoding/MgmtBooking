@@ -2130,6 +2130,7 @@ function deleteCustomer(customerId) {
                 state.customers = state.customers.filter(c => c.id !== customerId);
                 state.bookings = state.bookings.filter(b => b.customerId !== customerId);
                 state.transactions = state.transactions.filter(t => t.customerId !== customerId);
+                state.waitingList = state.waitingList.filter(item => item.customerId !== customerId);
                 debouncedSaveState();
                 refreshCurrentView();
             }}
