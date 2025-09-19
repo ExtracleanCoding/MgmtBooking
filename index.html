@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ray Ryan Management System</title>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet">
+
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+</head>
+<body class="p-4 sm:p-6">
+
+    <div id="app" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Header -->
+        <header class="mb-8 p-4 flex justify-between items-center">
+            <div>
+                <h1 class="retro-title">Ray Ryan Management System</h1>
+                <p class="mt-2 text-lg text-gray-600">Unified Management Dashboard</p>
+            </div>
+            <div id="digital-clock" class="text-right"></div>
+        </header>
+
+        <!-- Dashboard-level notifications -->
+        <div id="dashboard-notifications" class="mb-6 space-y-3"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Navigation -->
+            <nav id="main-nav" class="lg:col-span-2 flex flex-col gap-3"></nav>
+
+            <!-- Main Content Area -->
+            <main id="main-content" class="lg:col-span-10">
+                <div id="calendar-view" class="hidden"></div>
+                <div id="summary-view" class="hidden"></div>
+                <div id="billing-view" class="hidden"></div>
+                <div id="services-view" class="hidden"></div>
+                <div id="customers-view" class="hidden"></div>
+                <div id="staff-view" class="hidden"></div>
+                <div id="resources-view" class="hidden"></div>
+                <div id="expenses-view" class="hidden"></div>
+                <div id="waiting-list-view" class="hidden"></div>
+                <div id="settings-view" class="hidden"></div>
+                <div id="reports-view" class="hidden"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODALS: All modal HTML structures are included here -->
+    <div id="service-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="service-modal-title">New Service</h3></div>
+            <form onsubmit="saveService(event)" class="p-6 space-y-4">
+                <input type="hidden" id="service-id">
+                <div>
+                    <label for="service-name" class="block mb-1 text-sm font-medium text-gray-700">Service Name</label>
+                    <input type="text" id="service-name" required class="w-full">
+                </div>
+                <div>
+                    <label for="service-duration" class="block mb-1 text-sm font-medium text-gray-700">Duration (minutes)</label>
+                    <input type="number" id="service-duration" required class="w-full" step="30">
+                </div>
+                <div>
+                    <label for="service-type" class="block mb-1 text-sm font-medium text-gray-700">Service Type</label>
+                    <select id="service-type" onchange="handleServiceTypeChange()" class="w-full">
+                        <option value="DRIVING_LESSON">Driving Lesson</option>
+                        <option value="TOUR">Tour</option>
+                    </select>
+                </div>
+                <div id="tour-fields" class="space-y-4 pt-4 border-t">
+                    <h4 class="text-lg font-medium">Additional Details <span class="text-sm font-normal text-gray-500">(Optional)</span></h4>
+                    <div>
+                        <label for="service-description" class="block mb-1 text-sm font-medium text-gray-700">Description</label>
+                        <textarea id="service-description" rows="3" class="w-full"></textarea>
+                    </div>
+                    <div>
+                        <label for="service-photos" class="block mb-1 text-sm font-medium text-gray-700">Photo Gallery URLs (one per line)</label>
+                        <textarea id="service-photos" rows="3" class="w-full"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="service-capacity-min" class="block mb-1 text-sm font-medium text-gray-700">Min. Capacity</label>
+                            <input type="number" id="service-capacity-min" class="w-full" value="1" min="1">
+                        </div>
+                        <div>
+                            <label for="service-capacity-max" class="block mb-1 text-sm font-medium text-gray-700">Max. Capacity</label>
+                            <input type="number" id="service-capacity-max" class="w-full" value="10" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t">
+                     <h4 class="text-lg font-medium mb-2">Pricing Model</h4>
+                     <div class="flex gap-4 mb-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="pricing-type" value="fixed" checked onchange="handlePricingTypeChange(this.value)">
+                            <span class="ml-2">Fixed Price</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="pricing-type" value="tiered" onchange="handlePricingTypeChange(this.value)">
+                            <span class="ml-2">Tiered Pricing</span>
+                        </label>
+                     </div>
+                     <div id="pricing-fields-fixed">
+                        <label for="service-base-price" class="block mb-1 text-sm font-medium text-gray-700">Price (€)</label>
+                        <input type="number" id="service-base-price" class="w-full" step="0.01">
+                     </div>
+                     <div id="pricing-fields-tour" class="hidden space-y-2">
+                        <p class="text-sm text-gray-600">Define pricing tiers (e.g., for different group sizes or types like Adult/Child).</p>
+                        <div id="pricing-tiers-container"></div>
+                        <button type="button" onclick="addPricingTier()" class="btn btn-secondary text-sm">Add Tier</button>
+                     </div>
+                </div>
+                 <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeServiceModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="booking-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="booking-modal-title">New Booking</h3></div>
+            <form onsubmit="saveBooking(event)" class="p-6 space-y-4">
+                <input type="hidden" id="booking-id">
+                <input type="hidden" id="booking-date">
+                <div>
+                    <label for="booking-service" class="block mb-1 text-sm font-medium">Service</label>
+                    <select id="booking-service" required class="w-full" onchange="handleServiceSelectionChange()"></select>
+                </div>
+                <div>
+                    <label for="booking-customer" class="block mb-1 text-sm font-medium">Customer</label>
+                    <select id="booking-customer" required class="w-full"></select>
+                </div>
+                 <div>
+                    <label for="booking-staff" class="block mb-1 text-sm font-medium">Staff</label>
+                    <select id="booking-staff" required class="w-full"></select>
+                </div>
+                <div>
+                    <label for="booking-resource" class="block mb-1 text-sm font-medium">Resource</label>
+                    <select id="booking-resource" required class="w-full"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="booking-start-time" class="block mb-1 text-sm font-medium">Start Time</label>
+                        <select id="booking-start-time" required class="w-full" onchange="handleStartTimeChange()"></select>
+                    </div>
+                    <div>
+                        <label for="booking-end-time" class="block mb-1 text-sm font-medium">End Time</label>
+                        <input type="text" id="booking-end-time" required class="w-full bg-gray-100" readonly>
+                    </div>
+                </div>
+                <div>
+                    <label for="booking-pickup" class="block mb-1 text-sm font-medium">Pickup Location</label>
+                    <input type="text" id="booking-pickup" class="w-full">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="booking-status" class="block mb-1 text-sm font-medium">Booking Status</label>
+                        <select id="booking-status" class="w-full">
+                            <option value="Pending">Pending</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="booking-payment-status" class="block mb-1 text-sm font-medium">Payment Status</label>
+                        <select id="booking-payment-status" class="w-full">
+                            <option value="Unpaid">Unpaid</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Paid (Credit)">Paid (Credit)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="fee-display" class="p-3 bg-gray-50 rounded-md text-center">
+                    <span class="text-gray-600">Calculated Fee: </span>
+                    <span id="calculated-fee" class="text-xl font-semibold text-gray-900">€0.00</span>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t mt-6">
+                    <div id="booking-modal-actions-left" class="flex gap-3"></div>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="closeBookingModal()" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Booking</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="day-summary-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header flex justify-between items-center">
+                <h3 id="day-summary-modal-title">Bookings</h3>
+                <button onclick="closeDaySummaryModal()" class="p-1 rounded-full hover:bg-gray-200">
+                    <svg class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="day-summary-bookings-list" class="p-6 space-y-3 max-h-96 overflow-y-auto"></div>
+            <div class="flex justify-between items-center p-4 border-t bg-gray-50 rounded-b-lg">
+                <button onclick="closeDaySummaryModal()" class="btn btn-secondary">Close</button>
+                <button id="day-summary-add-new" class="btn btn-primary">Add New Booking</button>
+            </div>
+        </div>
+    </div>
+    <div id="invoice-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div id="invoice-content" class="p-8"></div>
+            <div class="p-4 bg-gray-50 border-t flex justify-between items-center rounded-b-lg">
+                <button onclick="closeInvoiceModal()" class="btn btn-secondary">Close</button>
+                <button onclick="printInvoice()" class="btn btn-primary">Print Invoice</button>
+            </div>
+        </div>
+    </div>
+    <div id="customer-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+             <div class="modal-header"><h3 id="customer-modal-title">New Customer</h3></div>
+            <form onsubmit="saveCustomer(event)" class="p-6 space-y-4">
+                 <input type="hidden" id="customer-id">
+                 <div>
+                    <label for="customer-name" class="block mb-1 text-sm font-medium">Full Name</label>
+                    <input type="text" id="customer-name" required class="w-full">
+                </div>
+                <div>
+                    <label for="customer-email" class="block mb-1 text-sm font-medium">Email</label>
+                    <input type="email" id="customer-email" class="w-full">
+                </div>
+                <div>
+                    <label for="customer-phone" class="block mb-1 text-sm font-medium">Phone Number</label>
+                    <input type="tel" id="customer-phone" class="w-full">
+                </div>
+                <div id="driving-school-fields" class="space-y-4 pt-4 border-t">
+                    <div>
+                        <label for="customer-license" class="block mb-1 text-sm font-medium">License Number</label>
+                        <input type="text" id="customer-license" class="w-full">
+                    </div>
+                    <div>
+                        <label for="customer-credits" class="block mb-1 text-sm font-medium">Lesson Credits (hours)</label>
+                        <input type="number" id="customer-credits" class="w-full" step="0.5" placeholder="e.g., 10.5">
+                    </div>
+                </div>
+                 <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeCustomerModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Customer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="customer-progress-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="modal-header flex justify-between items-center">
+                <h3 id="customer-progress-modal-title">Customer Progress</h3>
+                <button id="summarize-progress-btn" class="btn btn-purple text-sm">✨ Summarize Progress</button>
+            </div>
+            <div class="p-6 space-y-6 overflow-y-auto">
+                <div id="progress-summary-container" class="hidden">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">AI Progress Summary</h4>
+                    <div id="summary-output" class="ai-summary-container whitespace-pre-wrap"></div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-medium text-gray-800 mb-2">Lesson History</h4>
+                    <div id="progress-log-list" class="space-y-3"></div>
+                </div>
+                <form id="progress-log-form" class="border-t pt-6 space-y-4">
+                    <h4 id="progress-form-title" class="text-xl font-semibold text-gray-800">Add New Lesson Note</h4>
+                    <input type="hidden" id="progress-customer-id">
+                    <input type="hidden" id="progress-note-id">
+                    <input type="hidden" id="progress-lesson-date-hidden">
+                    <div id="progress-date-container"></div>
+                    <div>
+                        <label for="progress-notes" class="block mb-1 text-sm font-medium text-gray-700">General Notes</label>
+                        <textarea id="progress-notes" rows="3" class="w-full" placeholder="e.g., Customer did well with roundabouts..."></textarea>
+                    </div>
+                    <div id="progress-skills-container"></div>
+                    <div id="progress-form-buttons" class="text-right space-x-2"></div>
+                </form>
+            </div>
+            <div class="p-4 bg-gray-50 border-t flex justify-end items-center rounded-b-lg mt-auto">
+                <button type="button" onclick="closeCustomerProgressModal()" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="staff-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="staff-modal-title">New Staff Member</h3></div>
+            <form onsubmit="saveStaff(event)" class="p-6 space-y-4">
+                 <input type="hidden" id="staff-id">
+                 <div>
+                    <label for="staff-name" class="block mb-1 text-sm font-medium text-gray-700">Full Name</label>
+                    <input type="text" id="staff-name" required class="w-full">
+                </div>
+                <div>
+                    <label for="staff-email" class="block mb-1 text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="staff-email" class="w-full">
+                </div>
+                <div>
+                    <label for="staff-phone" class="block mb-1 text-sm font-medium text-gray-700">Phone Number</label>
+                    <input type="tel" id="staff-phone" class="w-full">
+                </div>
+                <div>
+                    <label for="staff-type" class="block mb-1 text-sm font-medium text-gray-700">Staff Type</label>
+                    <select id="staff-type" required class="w-full">
+                        <option value="INSTRUCTOR">Instructor</option>
+                        <option value="GUIDE">Tour Guide</option>
+                        <option value="ADMIN">Admin</option>
+                    </select>
+                </div>
+                 <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeStaffModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Staff Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="resource-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="resource-modal-title">New Resource</h3></div>
+            <form onsubmit="saveResource(event)" class="p-6 space-y-4">
+                <input type="hidden" id="resource-id">
+                <div>
+                    <label for="resource-name" class="block mb-1 text-sm font-medium text-gray-700">Resource Name</label>
+                    <input type="text" id="resource-name" required class="w-full" placeholder="e.g., Ford Focus, Meeting Room 1">
+                </div>
+                <div>
+                    <label for="resource-type" class="block mb-1 text-sm font-medium text-gray-700">Resource Type</label>
+                    <select id="resource-type" required class="w-full" onchange="toggleVehicleFields()">
+                        <option value="VEHICLE">Vehicle</option>
+                        <option value="ROOM">Room</option>
+                        <option value="EQUIPMENT">Equipment</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="resource-capacity" class="block mb-1 text-sm font-medium text-gray-700">Capacity</label>
+                    <input type="number" id="resource-capacity" class="w-full" value="1" min="1">
+                </div>
+                <div id="vehicle-specific-fields" class="space-y-4 pt-4 border-t">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div><label for="resource-make" class="block mb-1 text-sm font-medium">Make</label><input type="text" id="resource-make" class="w-full"></div>
+                        <div><label for="resource-model" class="block mb-1 text-sm font-medium">Model</label><input type="text" id="resource-model" class="w-full"></div>
+                    </div>
+                    <div><label for="resource-reg" class="block mb-1 text-sm font-medium">Registration</label><input type="text" id="resource-reg" class="w-full"></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-4 mt-2">
+                        <div><label for="resource-mot" class="block mb-1 text-sm font-medium">MOT Due</label><input type="date" id="resource-mot" class="w-full"></div>
+                        <div><label for="resource-tax" class="block mb-1 text-sm font-medium">Tax Due</label><input type="date" id="resource-tax" class="w-full"></div>
+                        <div><label for="resource-service" class="block mb-1 text-sm font-medium">Service Due</label><input type="date" id="resource-service" class="w-full"></div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeResourceModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Resource</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="expense-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="expense-modal-title">New Expense</h3></div>
+            <form onsubmit="saveExpense(event)" class="p-6 space-y-4">
+                <input type="hidden" id="expense-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label for="expense-date" class="block mb-1 text-sm font-medium">Date</label><input type="date" id="expense-date" required class="w-full"></div>
+                    <div><label for="expense-category" class="block mb-1 text-sm font-medium">Category</label><select id="expense-category" required class="w-full"><option>Fuel</option><option>Insurance</option><option>Maintenance</option><option>Tax</option><option>Office Supplies</option><option>Other</option></select></div>
+                </div>
+                <div><label for="expense-description" class="block mb-1 text-sm font-medium">Description</label><input type="text" id="expense-description" required class="w-full"></div>
+                <div><label for="expense-amount" class="block mb-1 text-sm font-medium">Amount (€)</label><input type="number" id="expense-amount" required class="w-full" step="0.01"></div>
+                <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeExpenseModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="block-dates-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3>Block Dates</h3></div>
+            <form onsubmit="saveBlockedPeriod(event)" class="p-6 space-y-4">
+                <div><label for="block-staff" class="block mb-1 text-sm font-medium">Staff Member</label><select id="block-staff" required class="w-full"></select></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label for="block-start-date" class="block mb-1 text-sm font-medium">Start Date</label><input type="date" id="block-start-date" required class="w-full"></div>
+                    <div><label for="block-end-date" class="block mb-1 text-sm font-medium">End Date</label><input type="date" id="block-end-date" required class="w-full"></div>
+                </div>
+                <div><label for="block-reason" class="block mb-1 text-sm font-medium">Reason</label><input type="text" id="block-reason" required class="w-full"></div>
+                <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeBlockDatesModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Block Dates</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="sell-package-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-4xl modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="sell-package-modal-title">Sell Package</h3></div>
+            <form onsubmit="confirmSale(event)" class="p-6 space-y-4">
+                <input type="hidden" id="sell-package-customer-id">
+                <div><label for="sell-package-select" class="block mb-1 text-sm font-medium">Select Package</label><select id="sell-package-select" required class="w-full" onchange="updatePackageSummary()"></select></div>
+                <div id="sell-package-summary" class="p-3 bg-gray-50 rounded-md text-sm"></div>
+                <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <button type="button" onclick="closeSellPackageModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-green">Confirm Sale</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="dialog-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-sm modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="dialog-title">Alert</h3></div>
+            <div class="p-6">
+                <p id="dialog-message" class="mt-2 text-gray-600"></p>
+                <div id="dialog-buttons" class="flex justify-end gap-3 mt-6"></div>
+            </div>
+        </div>
+    </div>
+    <div id="completion-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="w-full max-w-md modal transform scale-95 opacity-0">
+            <div class="modal-header"><h3 id="completion-modal-title">Complete Lesson</h3></div>
+            <div class="p-6 space-y-4">
+                <p id="completion-message" class="text-gray-600"></p>
+                <div id="completion-credit-info" class="p-3 bg-blue-50 text-blue-800 rounded-md text-sm"></div>
+                <div id="completion-buttons" class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t">
+                    <!-- Buttons are injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Element -->
+    <div id="toast-notification"></div>
+
+    <!-- JAVASCRIPT MODULES -->
+    <script src="script.js" defer></script>
+    <!-- The large inline script has been moved to script.js -->
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+
+</body>
+</html>
