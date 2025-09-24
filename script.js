@@ -1226,10 +1226,20 @@ function renderDayView() {
         const left = 15 + (booking.column * width);
 
         const customer = state.customers.find(c => c.id === booking.customerId);
-        const service = state.services.find(s => s.id === booking.serviceId);
-        const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
+        let bookingTitle = '';
+        let isMockTest = false;
+
+        if (booking.bookingType === 'lesson') {
+            const level = (booking.lessonLevel || 'standard').charAt(0).toUpperCase() + (booking.lessonLevel || 'standard').slice(1).replace('_', ' ');
+            bookingTitle = `${level} Lesson: ${customer ? customer.name : 'Unknown'}`;
+            isMockTest = booking.lessonLevel === 'mock_test';
+        } else {
+            const service = state.services.find(s => s.id === booking.serviceId);
+            bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
+            isMockTest = service && service.service_name.toLowerCase().includes('mock test');
+        }
+
         const bookingClass = `timeline-booking ${isMockTest ? 'mock-test' : ''}`;
-        const bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
         return `<div onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
     }).join('');
 
@@ -1287,10 +1297,20 @@ function renderWeekView() {
 
         const bookingItems = dayBookings.map(b => {
             const customer = state.customers.find(c => c.id === b.customerId);
-            const service = state.services.find(s => s.id === b.serviceId);
-            const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
+            let bookingTitle = '';
+            let isMockTest = false;
+
+            if (b.bookingType === 'lesson') {
+                const level = (b.lessonLevel || 'standard').charAt(0).toUpperCase() + (b.lessonLevel || 'standard').slice(1).replace('_', ' ');
+                bookingTitle = `${level.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}`;
+                isMockTest = b.lessonLevel === 'mock_test';
+            } else {
+                const service = state.services.find(s => s.id === b.serviceId);
+                bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
+                isMockTest = service && service.service_name.toLowerCase().includes('mock test');
+            }
+
             const bookingClass = isMockTest ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200';
-            const bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
             return `<div onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
         }).join('');
 
