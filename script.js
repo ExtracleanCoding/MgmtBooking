@@ -283,14 +283,7 @@ function addDummyData() {
     const customers = Array.from({length: 15}, (_, i) => ({id: `customer_${i+1}`, name: `Customer ${i+1}`, email: `customer${i+1}@a.com`, phone: `${i+1}${i+1}${i+1}`, driving_school_details: {}}));
     const staff = [{id: 'staff_1', name: 'Ray Ryan', email: 'ray@a.com', phone: '789', staff_type: 'INSTRUCTOR'}];
     const resources = [{id: 'resource_1', resource_name: 'Ford Focus', make: 'Ford', model: 'Focus', reg: '123-D-456', resource_type: 'VEHICLE', capacity: 4}];
-    const services = [{
-        id: 'service_lesson_1',
-        service_name: 'Standard Driving Lesson',
-        service_type: 'DRIVING_LESSON',
-        duration_minutes: 60,
-        base_price: 30.00,
-        pricing_rules: { type: 'fixed', price: 30.00 }
-    }];
+    const services = [];
     const today = new Date();
     const date = toLocalDateString(today);
     const bookings = [{
@@ -1487,7 +1480,18 @@ function renderSummaryList() {
         const customer = state.customers.find(c => c.id === booking.customerId)?.name || 'N/A';
         const staff = state.staff.find(s => s.id === booking.staffId)?.name || 'N/A';
         const resource = booking.resourceIds && booking.resourceIds.length > 0 ? state.resources.find(r => r.id === booking.resourceIds[0])?.resource_name : 'N/A';
-        const service = state.services.find(s => s.id === booking.serviceId)?.service_name || 'N/A';
+
+        let serviceDescription = 'N/A';
+        if (booking.bookingType === 'lesson') {
+            const level = (booking.lessonLevel || 'standard').charAt(0).toUpperCase() + (booking.lessonLevel || 'standard').slice(1).replace('_', ' ');
+            serviceDescription = `${level} Lesson`;
+        } else {
+            const service = state.services.find(s => s.id === booking.serviceId);
+            if (service) {
+                serviceDescription = service.service_name;
+            }
+        }
+
         const date = parseYYYYMMDD(booking.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         return `
             <div class="p-3 border-b border-gray-200 grid grid-cols-6 gap-4 items-center">
@@ -1496,7 +1500,7 @@ function renderSummaryList() {
                 <p>${sanitizeHTML(customer)}</p>
                 <p>${sanitizeHTML(staff)}</p>
                 <p>${sanitizeHTML(resource)}</p>
-                <p>${sanitizeHTML(service)}</p>
+                <p>${sanitizeHTML(serviceDescription)}</p>
             </div>
         `;
     }).join('');
@@ -2462,7 +2466,8 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
     const modal = document.getElementById('booking-modal');
     const form = modal.querySelector('form'); form.reset();
 
-    populateSelect('booking-service', state.services, false, 'service_name');
+    const tourServices = state.services.filter(s => s.service_type === 'TOUR');
+    populateSelect('booking-service', tourServices, false, 'service_name');
     populateSelect('booking-customer', state.customers);
     populateSelect('booking-staff', state.staff);
     populateSelect('booking-resource', state.resources, false, 'resource_name');
