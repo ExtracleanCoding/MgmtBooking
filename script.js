@@ -283,21 +283,34 @@ function addDummyData() {
     const customers = Array.from({length: 15}, (_, i) => ({id: `customer_${i+1}`, name: `Customer ${i+1}`, email: `customer${i+1}@a.com`, phone: `${i+1}${i+1}${i+1}`, driving_school_details: {}}));
     const staff = [{id: 'staff_1', name: 'Ray Ryan', email: 'ray@a.com', phone: '789', staff_type: 'INSTRUCTOR'}];
     const resources = [{id: 'resource_1', resource_name: 'Ford Focus', make: 'Ford', model: 'Focus', reg: '123-D-456', resource_type: 'VEHICLE', capacity: 4}];
-    const services = [];
+    const services = [
+        // Add a tour as an example service
+        {
+            id: 'service_tour_1',
+            service_name: 'City Highlights Tour',
+            service_type: 'TOUR',
+            duration_minutes: 120,
+            base_price: 50.00,
+            pricing_rules: { type: 'fixed', price: 50.00 },
+            description: 'A 2-hour tour of the city\'s most famous landmarks.',
+            capacity: { min: 1, max: 4 }
+        }
+    ];
     const today = new Date();
     const date = toLocalDateString(today);
     const bookings = [{
         id: 'booking_1',
         date: date,
-        startTime: '10:00',
-        endTime: '11:00',
-        customerId: 'customer_1',
+        startTime: '14:00',
+        endTime: '16:00',
+        customerId: 'customer_2',
         staffId: 'staff_1',
         resourceIds: ['resource_1'],
-        serviceId: 'service_lesson_1',
-        status: 'Completed',
+        serviceId: 'service_tour_1',
+        bookingType: 'tour',
+        status: 'Scheduled',
         paymentStatus: 'Unpaid',
-        fee: 30
+        fee: 50.00
     }];
 
     state.customers = customers;
@@ -681,8 +694,8 @@ function renderServicesView() {
 function renderCustomersView() {
     const columns = [
         { header: 'Name', render: item => item.name },
-        { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
-        { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
+        { header: 'Email', render: item => item.email || '-' },
+        { header: 'Phone', render: item => item.phone || '-' }
     ];
     renderGenericListView('customers', 'Customers', columns, state.customers, 'openCustomerModal', 'openCustomerModal', 'deleteCustomer', 'Customer');
 }
@@ -690,8 +703,8 @@ function renderCustomersView() {
 function renderStaffView() {
     const columns = [
         { header: 'Name', render: item => item.name },
-        { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
-        { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
+        { header: 'Email', render: item => item.email || '-' },
+        { header: 'Phone', render: item => item.phone || '-' }
     ];
     renderGenericListView('staff', 'Staff', columns, state.staff, 'openStaffModal', 'openStaffModal', 'deleteStaff', 'Staff Member');
 }
@@ -699,8 +712,8 @@ function renderStaffView() {
 function renderResourcesView() {
     const columns = [
         { header: 'Name', render: item => item.resource_name },
-        { header: 'Type', render: item => item.resource_type, class: 'hidden sm:table-cell' },
-        { header: 'Capacity', render: item => item.capacity || 'N/A', class: 'hidden md:table-cell' }
+        { header: 'Type', render: item => item.resource_type },
+        { header: 'Capacity', render: item => item.capacity || 'N/A' }
     ];
     renderGenericListView('resources', 'Resources', columns, state.resources, 'openResourceModal', 'openResourceModal', 'deleteResource', 'Resource');
 }
@@ -708,32 +721,62 @@ function renderResourcesView() {
 function renderGenericListView(viewName, title, columns, data, addFn, editFn, deleteFn, singularTitle) {
     const container = document.getElementById(`${viewName}-view`);
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
-    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
-    const listContainer = document.getElementById(`${viewName}-list-table`);
-    if (data.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
 
-    const tableHeaders = columns.map(c => `<th class="${c.class || ''}">${c.header}</th>`).join('');
-    const tableRows = data.map(item => {
+    container.innerHTML = `
+        <div class="bg-panel rounded-lg shadow-md">
+            <div class="flex justify-between items-center p-4 border-b border-themed">
+                <h2 class="text-xl font-semibold">${sanitizeHTML(title)}</h2>
+                <button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button>
+            </div>
+            <div id="${viewName}-list-cards" class="p-4"></div>
+        </div>`;
+
+    const listContainer = document.getElementById(`${viewName}-list-cards`);
+    if (data.length === 0) {
+        listContainer.innerHTML = `<p class="text-center py-12 text-muted">No ${viewName} found.</p>`;
+        return;
+    }
+
+    const cardsHtml = data.map(item => {
         let actionsHtml;
+        const isMockTestService = viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID;
 
-        if (viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID) {
+        if (isMockTestService) {
             actionsHtml = `
-                <span class="text-sm text-gray-500 italic mr-4">Managed in Settings</span>
-                <button class="font-medium text-indigo-400 cursor-not-allowed" disabled>Edit</button>
-                <button class="ml-4 font-medium text-red-400 cursor-not-allowed" disabled>Delete</button>
-            `;
+                <button class="btn btn-secondary text-sm" disabled>Edit</button>
+                <button class="btn btn-secondary text-sm" disabled>Delete</button>`;
         } else {
-            actionsHtml = `<button onclick="${editFn}('${item.id}')" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
+            let editButton = `<button onclick="${editFn}('${item.id}')" class="btn btn-secondary text-sm">Edit</button>`;
+            let deleteButton = `<button onclick="${deleteFn}('${item.id}')" class="btn btn-danger text-sm">Delete</button>`;
+            let customerButtons = '';
             if (viewName === 'customers') {
-                actionsHtml += ` <button onclick="openCustomerProgressModal('${item.id}')" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
-                actionsHtml += ` <button onclick="openSellPackageModal('${item.id}')" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
+                customerButtons = `
+                    <button onclick="openCustomerProgressModal('${item.id}')" class="btn btn-green text-sm">Progress</button>
+                    <button onclick="openSellPackageModal('${item.id}')" class="btn btn-purple text-sm">Sell Package</button>`;
             }
-            actionsHtml += ` <button onclick="${deleteFn}('${item.id}')" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
+            // The order of buttons is now Edit, Customer-specific, then Delete
+            actionsHtml = `${editButton} ${customerButtons} ${deleteButton}`;
         }
 
-        return `<tr>${columns.map(c => `<td class="${c.class || ''}">${sanitizeHTML(c.render(item))}</td>`).join('')}<td class="text-right">${actionsHtml}</td></tr>`;
+        const mainInfo = `<h3 class="text-lg font-semibold text-primary truncate">${sanitizeHTML(columns[0].render(item))}</h3>`;
+        const secondaryInfo = columns.slice(1).map(c =>
+            `<p class="text-sm text-secondary truncate"><strong class="font-medium text-muted">${c.header}:</strong> ${sanitizeHTML(c.render(item))}</p>`
+        ).join('');
+
+        const managedNote = isMockTestService ? '<p class="text-xs text-muted italic mt-2">This service is managed automatically in Settings.</p>' : '';
+
+        return `
+            <div class="bg-secondary rounded-lg shadow-sm border border-themed p-4 mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center">
+                <div class="flex-grow min-w-0">
+                    ${mainInfo}
+                    <div class="mt-2 space-y-1">${secondaryInfo}</div>
+                    ${managedNote}
+                </div>
+                <div class="flex gap-2 flex-shrink-0 ml-0 sm:ml-4 mt-4 sm:mt-0 self-start sm:self-center">${actionsHtml}</div>
+            </div>`;
     }).join('');
-    listContainer.innerHTML = `<table class="min-w-full divide-y divide-gray-200"><thead><tr>${tableHeaders}<th></th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${tableRows}</tbody></table>`;
+
+    listContainer.innerHTML = cardsHtml;
 }
 
 function renderExpensesView() {
