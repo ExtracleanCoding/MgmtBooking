@@ -134,10 +134,44 @@
             <form onsubmit="saveBooking(event)" class="p-6 space-y-4">
                 <input type="hidden" id="booking-id">
                 <input type="hidden" id="booking-date">
-                <div>
-                    <label for="booking-service" class="block mb-1 text-sm font-medium">Service</label>
-                    <select id="booking-service" required class="w-full" onchange="handleServiceSelectionChange()"></select>
+
+                <!-- Booking Type Selector -->
+                <div class="border-b pb-4">
+                    <label class="block mb-2 text-sm font-medium text-gray-900">Booking Type</label>
+                    <div id="booking-type-selector" class="flex gap-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="booking-type" value="lesson" checked onchange="handleBookingTypeChange(this.value)">
+                            <span class="ml-2">Driving Lesson</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="booking-type" value="tour" onchange="handleBookingTypeChange(this.value)">
+                            <span class="ml-2">Tour / Other Service</span>
+                        </label>
+                    </div>
                 </div>
+
+                <!-- Driving Lesson Specific Fields -->
+                <div id="lesson-specific-fields" class="space-y-4">
+                    <div>
+                        <label for="booking-lesson-level" class="block mb-1 text-sm font-medium">Lesson Level</label>
+                        <select id="booking-lesson-level" required class="w-full" onchange="handleLessonBookingChange()">
+                            <option value="standard">Standard</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                            <option value="mock_test">Mock Test</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tour/Service Specific Fields -->
+                <div id="tour-specific-fields" class="hidden space-y-4">
+                    <div>
+                        <label for="booking-service" class="block mb-1 text-sm font-medium">Service</label>
+                        <select id="booking-service" required class="w-full" onchange="handleServiceSelectionChange()"></select>
+                    </div>
+                </div>
+
+                <!-- Shared Fields -->
                 <div>
                     <label for="booking-customer" class="block mb-1 text-sm font-medium">Customer</label>
                     <select id="booking-customer" required class="w-full"></select>
@@ -150,16 +184,25 @@
                     <label for="booking-resource" class="block mb-1 text-sm font-medium">Resource</label>
                     <select id="booking-resource" required class="w-full"></select>
                 </div>
+
+                <!-- Time Selection -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="booking-start-time" class="block mb-1 text-sm font-medium">Start Time</label>
-                        <select id="booking-start-time" required class="w-full" onchange="handleStartTimeChange()"></select>
+                        <select id="booking-start-time" required class="w-full" onchange="handleLessonBookingChange()"></select>
                     </div>
                     <div>
                         <label for="booking-end-time" class="block mb-1 text-sm font-medium">End Time</label>
-                        <input type="text" id="booking-end-time" required class="w-full bg-gray-100" readonly>
+                        <select id="booking-end-time" required class="w-full" onchange="handleLessonBookingChange()"></select>
                     </div>
                 </div>
+
+                <!-- Calculated Duration Display -->
+                <div id="calculated-duration-display" class="p-2 bg-gray-50 rounded-md text-center text-sm">
+                    <span class="text-gray-600">Duration: </span>
+                    <span id="calculated-duration" class="font-semibold text-gray-900">0 minutes</span>
+                </div>
+
                 <div>
                     <label for="booking-pickup" class="block mb-1 text-sm font-medium">Pickup Location</label>
                     <input type="text" id="booking-pickup" class="w-full">
@@ -183,10 +226,14 @@
                         </select>
                     </div>
                 </div>
+
+                <!-- Fee Display -->
                 <div id="fee-display" class="p-3 bg-gray-50 rounded-md text-center">
                     <span class="text-gray-600">Calculated Fee: </span>
                     <span id="calculated-fee" class="text-xl font-semibold text-gray-900">€0.00</span>
                 </div>
+
+                <!-- Modal Actions -->
                 <div class="flex justify-between items-center pt-4 border-t mt-6">
                     <div id="booking-modal-actions-left" class="flex gap-3"></div>
                     <div class="flex gap-3">

@@ -1930,9 +1930,10 @@ function saveBooking(event) {
     const customerId = document.getElementById('booking-customer').value;
     const staffId = document.getElementById('booking-staff').value;
     const resourceId = document.getElementById('booking-resource').value;
-    const serviceId = document.getElementById('booking-service').value;
     const newStatus = document.getElementById('booking-status').value;
     const newPaymentStatus = document.getElementById('booking-payment-status').value;
+
+    const bookingType = document.querySelector('input[name="booking-type"]:checked').value;
 
     const conflict = findBookingConflict({
         id: bookingId, date, startTime, endTime, customerId, staffId,
@@ -1947,7 +1948,7 @@ function saveBooking(event) {
         });
         return;
     }
-    const fee = calculateBookingFee(serviceId);
+    const fee = calculateBookingFee();
 
     const originalBooking = !isNewBooking ? state.bookings.find(b => b.id === bookingId) : null;
     const oldStatus = originalBooking ? originalBooking.status : null;
@@ -1996,13 +1997,22 @@ function saveBooking(event) {
         customerId: customerId,
         staffId: staffId,
         resourceIds: resourceId ? [resourceId] : [],
-        serviceId: serviceId,
         fee: fee,
         status: newStatus,
         paymentStatus: newPaymentStatus,
         pickup: document.getElementById('booking-pickup').value,
-        transactionId: transactionId
+        transactionId: transactionId,
+        bookingType: bookingType,
+        serviceId: null,
+        lessonLevel: null,
     };
+
+    if (bookingType === 'lesson') {
+        bookingData.lessonLevel = document.getElementById('booking-lesson-level').value;
+    } else { // tour
+        bookingData.serviceId = document.getElementById('booking-service').value;
+    }
+
 
     if (newStatus === 'Completed' && oldStatus !== 'Completed' && bookingData.paymentStatus === 'Unpaid') {
         openCompletionModal(bookingData);
@@ -2447,14 +2457,26 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
         if(booking) {
             document.getElementById('booking-id').value = booking.id;
             document.getElementById('booking-date').value = booking.date;
-            document.getElementById('booking-service').value = booking.serviceId || DEFAULT_SERVICE_ID;
             document.getElementById('booking-customer').value = booking.customerId;
             document.getElementById('booking-staff').value = booking.staffId;
             document.getElementById('booking-resource').value = booking.resourceIds ? booking.resourceIds[0] : '';
             document.getElementById('booking-start-time').value = booking.startTime;
+            document.getElementById('booking-end-time').value = booking.endTime;
             document.getElementById('booking-pickup').value = booking.pickup || '';
             document.getElementById('booking-status').value = booking.status;
             document.getElementById('booking-payment-status').value = booking.paymentStatus;
+
+            const bookingType = booking.bookingType || 'tour'; // Default to tour for old data
+            document.querySelector(`input[name="booking-type"][value="${bookingType}"]`).checked = true;
+
+            if (bookingType === 'lesson') {
+                document.getElementById('booking-lesson-level').value = booking.lessonLevel || 'standard';
+            } else {
+                document.getElementById('booking-service').value = booking.serviceId || '';
+            }
+
+            handleBookingTypeChange(bookingType);
+
             leftActionsContainer.innerHTML = `
                 <button type="button" onclick="copySmsReminder('${bookingId}')" class="${btnSecondary}">Copy SMS Reminder</button>
                 <button type="button" onclick="exportToGoogleCalendar('${bookingId}')" class="${btnGreen}">Add to Google Calendar</button>
@@ -2466,14 +2488,14 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
         document.getElementById('booking-id').value = '';
         document.getElementById('booking-date').value = date;
         document.getElementById('booking-start-time').value = startTime || '09:00';
+        const defaultEndTime = minutesToTime(timeToMinutes(startTime || '09:00') + 60);
+        document.getElementById('booking-end-time').value = endTime || defaultEndTime;
         document.getElementById('booking-status').value = 'Scheduled';
         document.getElementById('booking-payment-status').value = 'Unpaid';
-    }
 
-    handleServiceSelectionChange();
-
-    if (endTime) {
-        document.getElementById('booking-end-time').value = endTime;
+        // Default to lesson view
+        document.querySelector('input[name="booking-type"][value="lesson"]').checked = true;
+        handleBookingTypeChange('lesson');
     }
 
     modal.classList.remove('hidden');
@@ -3289,6 +3311,7 @@ function copyToClipboard(text) {
 
 function populateTimeSelects() {
     const startTimeSelect = document.getElementById('booking-start-time');
+    const endTimeSelect = document.getElementById('booking-end-time');
     let optionsHtml = '';
     for (let i = 7; i <= 20; i++) {
         optionsHtml += `<option value="${String(i).padStart(2, '0')}:00">${String(i).padStart(2, '0')}:00</option>`;
@@ -3297,6 +3320,7 @@ function populateTimeSelects() {
         }
     }
     startTimeSelect.innerHTML = optionsHtml;
+    endTimeSelect.innerHTML = optionsHtml;
 }
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
@@ -3354,25 +3378,127 @@ function handleServiceSelectionChange() {
     document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
 }
 
-function handleStartTimeChange() {
-    handleServiceSelectionChange();
+function handleBookingTypeChange(bookingType) {
+    const lessonFields = document.getElementById('lesson-specific-fields');
+    const tourFields = document.getElementById('tour-specific-fields');
+    const endTimeSelect = document.getElementById('booking-end-time');
+    const durationDisplay = document.getElementById('calculated-duration-display');
+
+    const lessonLevelSelect = document.getElementById('booking-lesson-level');
+    const serviceSelect = document.getElementById('booking-service');
+
+    if (bookingType === 'lesson') {
+        lessonFields.classList.remove('hidden');
+        tourFields.classList.add('hidden');
+        durationDisplay.classList.remove('hidden');
+        endTimeSelect.disabled = false;
+
+        lessonLevelSelect.required = true;
+        serviceSelect.required = false;
+
+        handleLessonBookingChange();
+    } else { // tour
+        lessonFields.classList.add('hidden');
+        tourFields.classList.remove('hidden');
+        durationDisplay.classList.add('hidden');
+        endTimeSelect.disabled = true;
+
+        lessonLevelSelect.required = false;
+        serviceSelect.required = true;
+
+        handleServiceSelectionChange();
+    }
 }
 
-function calculateBookingFee(serviceId) {
+function handleLessonBookingChange() {
+    const startTime = document.getElementById('booking-start-time').value;
+    const endTime = document.getElementById('booking-end-time').value;
+    const durationSpan = document.getElementById('calculated-duration');
+
+    if (!startTime || !endTime) {
+        durationSpan.textContent = '0 minutes';
+        return;
+    }
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const duration = endMinutes - startMinutes;
+
+    if (duration > 0) {
+        durationSpan.textContent = `${duration} minutes`;
+        durationSpan.parentElement.classList.remove('bg-red-100');
+    } else if (duration === 0) {
+        durationSpan.textContent = '0 minutes';
+        durationSpan.parentElement.classList.remove('bg-red-100');
+    } else {
+        durationSpan.textContent = `Invalid range`;
+        durationSpan.parentElement.classList.add('bg-red-100');
+    }
+
+    const fee = calculateBookingFee();
+    document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
+}
+
+function handleServiceSelectionChange() {
+    const serviceId = document.getElementById('booking-service').value;
+    if (!serviceId) return;
+
     const service = state.services.find(s => s.id === serviceId);
-    if (!service) return 0;
+    if (!service) return;
 
-    const rules = service.pricing_rules || {};
+    const startTime = document.getElementById('booking-start-time').value;
+    const newEndTime = minutesToTime(timeToMinutes(startTime) + service.duration_minutes);
 
-    if (rules.type === 'fixed') {
+    const endTimeSelect = document.getElementById('booking-end-time');
+    endTimeSelect.value = newEndTime;
+
+    // Recalculate fee with the correct function call
+    const fee = calculateBookingFee();
+    document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
+}
+
+function calculateBookingFee() {
+    const bookingType = document.querySelector('input[name="booking-type"]:checked').value;
+
+    if (bookingType === 'lesson') {
+        const level = document.getElementById('booking-lesson-level').value;
+        const startTime = document.getElementById('booking-start-time').value;
+        const endTime = document.getElementById('booking-end-time').value;
+
+        if (!startTime || !endTime) return 0;
+
+        const durationInMinutes = timeToMinutes(endTime) - timeToMinutes(startTime);
+        if (durationInMinutes <= 0) return 0;
+
+        const durationInHours = durationInMinutes / 60;
+        let hourlyRate = 0;
+
+        if (level === 'mock_test') {
+            // Mock tests have a fixed price, not per hour. Find the service and return its price.
+            const mockTestService = state.services.find(s => s.id === MOCK_TEST_SERVICE_ID);
+            return mockTestService ? mockTestService.base_price : (state.settings.mockTestRate || 0);
+        } else if (state.settings.rates[level]) {
+            hourlyRate = state.settings.rates[level];
+        }
+
+        return durationInHours * hourlyRate;
+
+    } else { // tour
+        const serviceId = document.getElementById('booking-service').value;
+        if (!serviceId) return 0;
+
+        const service = state.services.find(s => s.id === serviceId);
+        if (!service) return 0;
+
+        const rules = service.pricing_rules || {};
+        if (rules.type === 'fixed') {
+            return service.base_price || 0;
+        }
+        if (rules.type === 'tiered' && rules.tiers && rules.tiers.length > 0) {
+            return rules.tiers[0].price || 0; // Default to first tier price for now
+        }
         return service.base_price || 0;
     }
-
-    if (rules.type === 'tiered' && rules.tiers && rules.tiers.length > 0) {
-        return rules.tiers[0].price || 0;
-    }
-
-    return service.base_price || 0;
 }
 
 function updateStaffAvailability(date) {
