@@ -3436,8 +3436,25 @@ function handleBookingTypeChange(bookingType) {
 }
 
 function handleLessonBookingChange() {
+    const lessonLevel = document.getElementById('booking-lesson-level').value;
     const startTime = document.getElementById('booking-start-time').value;
-    const endTime = document.getElementById('booking-end-time').value;
+    const endTimeSelect = document.getElementById('booking-end-time');
+
+    if (lessonLevel === 'mock_test') {
+        endTimeSelect.disabled = true;
+        const mockTestDurationHours = state.settings.mockTestDuration || 1.5;
+        const durationMinutes = mockTestDurationHours * 60;
+        if (startTime) {
+            const newEndTime = minutesToTime(timeToMinutes(startTime) + durationMinutes);
+            if (endTimeSelect.value !== newEndTime) {
+                endTimeSelect.value = newEndTime;
+            }
+        }
+    } else {
+        endTimeSelect.disabled = false;
+    }
+
+    const endTime = endTimeSelect.value;
     const durationSpan = document.getElementById('calculated-duration');
 
     if (!startTime || !endTime) {
