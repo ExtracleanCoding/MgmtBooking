@@ -269,8 +269,8 @@ function runDataMigration() {
     localStorage.removeItem('students');
     localStorage.removeItem('instructors');
     localStorage.removeItem('vehicles');
-    // Also remove the old bookings key to prevent orphaned data
-    localStorage.removeItem('bookings');
+    // The line below was deleting the new bookings data.
+    // localStorage.removeItem('bookings');
     localStorage.setItem(MIGRATION_KEY, 'true');
     showToast("Data model updated to v3.0.0!");
 }
@@ -283,34 +283,28 @@ function addDummyData() {
     const customers = Array.from({length: 15}, (_, i) => ({id: `customer_${i+1}`, name: `Customer ${i+1}`, email: `customer${i+1}@a.com`, phone: `${i+1}${i+1}${i+1}`, driving_school_details: {}}));
     const staff = [{id: 'staff_1', name: 'Ray Ryan', email: 'ray@a.com', phone: '789', staff_type: 'INSTRUCTOR'}];
     const resources = [{id: 'resource_1', resource_name: 'Ford Focus', make: 'Ford', model: 'Focus', reg: '123-D-456', resource_type: 'VEHICLE', capacity: 4}];
-    const services = [
-        // Add a tour as an example service
-        {
-            id: 'service_tour_1',
-            service_name: 'City Highlights Tour',
-            service_type: 'TOUR',
-            duration_minutes: 120,
-            base_price: 50.00,
-            pricing_rules: { type: 'fixed', price: 50.00 },
-            description: 'A 2-hour tour of the city\'s most famous landmarks.',
-            capacity: { min: 1, max: 4 }
-        }
-    ];
+    const services = [{
+        id: 'service_lesson_1',
+        service_name: 'Standard Driving Lesson',
+        service_type: 'DRIVING_LESSON',
+        duration_minutes: 60,
+        base_price: 30.00,
+        pricing_rules: { type: 'fixed', price: 30.00 }
+    }];
     const today = new Date();
     const date = toLocalDateString(today);
     const bookings = [{
         id: 'booking_1',
         date: date,
-        startTime: '14:00',
-        endTime: '16:00',
-        customerId: 'customer_2',
+        startTime: '10:00',
+        endTime: '11:00',
+        customerId: 'customer_1',
         staffId: 'staff_1',
         resourceIds: ['resource_1'],
-        serviceId: 'service_tour_1',
-        bookingType: 'tour',
-        status: 'Scheduled',
+        serviceId: 'service_lesson_1',
+        status: 'Completed',
         paymentStatus: 'Unpaid',
-        fee: 50.00
+        fee: 30
     }];
 
     state.customers = customers;
@@ -694,8 +688,8 @@ function renderServicesView() {
 function renderCustomersView() {
     const columns = [
         { header: 'Name', render: item => item.name },
-        { header: 'Email', render: item => item.email || '-' },
-        { header: 'Phone', render: item => item.phone || '-' }
+        { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
+        { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
     ];
     renderGenericListView('customers', 'Customers', columns, state.customers, 'openCustomerModal', 'openCustomerModal', 'deleteCustomer', 'Customer');
 }
@@ -703,8 +697,8 @@ function renderCustomersView() {
 function renderStaffView() {
     const columns = [
         { header: 'Name', render: item => item.name },
-        { header: 'Email', render: item => item.email || '-' },
-        { header: 'Phone', render: item => item.phone || '-' }
+        { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
+        { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
     ];
     renderGenericListView('staff', 'Staff', columns, state.staff, 'openStaffModal', 'openStaffModal', 'deleteStaff', 'Staff Member');
 }
@@ -712,8 +706,8 @@ function renderStaffView() {
 function renderResourcesView() {
     const columns = [
         { header: 'Name', render: item => item.resource_name },
-        { header: 'Type', render: item => item.resource_type },
-        { header: 'Capacity', render: item => item.capacity || 'N/A' }
+        { header: 'Type', render: item => item.resource_type, class: 'hidden sm:table-cell' },
+        { header: 'Capacity', render: item => item.capacity || 'N/A', class: 'hidden md:table-cell' }
     ];
     renderGenericListView('resources', 'Resources', columns, state.resources, 'openResourceModal', 'openResourceModal', 'deleteResource', 'Resource');
 }
@@ -721,62 +715,32 @@ function renderResourcesView() {
 function renderGenericListView(viewName, title, columns, data, addFn, editFn, deleteFn, singularTitle) {
     const container = document.getElementById(`${viewName}-view`);
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
+    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
+    const listContainer = document.getElementById(`${viewName}-list-table`);
+    if (data.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
 
-    container.innerHTML = `
-        <div class="bg-panel rounded-lg shadow-md">
-            <div class="flex justify-between items-center p-4 border-b border-themed">
-                <h2 class="text-xl font-semibold">${sanitizeHTML(title)}</h2>
-                <button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button>
-            </div>
-            <div id="${viewName}-list-cards" class="p-4"></div>
-        </div>`;
-
-    const listContainer = document.getElementById(`${viewName}-list-cards`);
-    if (data.length === 0) {
-        listContainer.innerHTML = `<p class="text-center py-12 text-muted">No ${viewName} found.</p>`;
-        return;
-    }
-
-    const cardsHtml = data.map(item => {
+    const tableHeaders = columns.map(c => `<th class="${c.class || ''}">${c.header}</th>`).join('');
+    const tableRows = data.map(item => {
         let actionsHtml;
-        const isMockTestService = viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID;
 
-        if (isMockTestService) {
+        if (viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID) {
             actionsHtml = `
-                <button class="btn btn-secondary text-sm" disabled>Edit</button>
-                <button class="btn btn-secondary text-sm" disabled>Delete</button>`;
+                <span class="text-sm text-gray-500 italic mr-4">Managed in Settings</span>
+                <button class="font-medium text-indigo-400 cursor-not-allowed" disabled>Edit</button>
+                <button class="ml-4 font-medium text-red-400 cursor-not-allowed" disabled>Delete</button>
+            `;
         } else {
-            let editButton = `<button onclick="${editFn}('${item.id}')" class="btn btn-secondary text-sm">Edit</button>`;
-            let deleteButton = `<button onclick="${deleteFn}('${item.id}')" class="btn btn-danger text-sm">Delete</button>`;
-            let customerButtons = '';
+            actionsHtml = `<button onclick="${editFn}('${item.id}')" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
             if (viewName === 'customers') {
-                customerButtons = `
-                    <button onclick="openCustomerProgressModal('${item.id}')" class="btn btn-green text-sm">Progress</button>
-                    <button onclick="openSellPackageModal('${item.id}')" class="btn btn-purple text-sm">Sell Package</button>`;
+                actionsHtml += ` <button onclick="openCustomerProgressModal('${item.id}')" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
+                actionsHtml += ` <button onclick="openSellPackageModal('${item.id}')" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
             }
-            // The order of buttons is now Edit, Customer-specific, then Delete
-            actionsHtml = `${editButton} ${customerButtons} ${deleteButton}`;
+            actionsHtml += ` <button onclick="${deleteFn}('${item.id}')" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
         }
 
-        const mainInfo = `<h3 class="text-lg font-semibold text-primary truncate">${sanitizeHTML(columns[0].render(item))}</h3>`;
-        const secondaryInfo = columns.slice(1).map(c =>
-            `<p class="text-sm text-secondary truncate"><strong class="font-medium text-muted">${c.header}:</strong> ${sanitizeHTML(c.render(item))}</p>`
-        ).join('');
-
-        const managedNote = isMockTestService ? '<p class="text-xs text-muted italic mt-2">This service is managed automatically in Settings.</p>' : '';
-
-        return `
-            <div class="bg-secondary rounded-lg shadow-sm border border-themed p-4 mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center">
-                <div class="flex-grow min-w-0">
-                    ${mainInfo}
-                    <div class="mt-2 space-y-1">${secondaryInfo}</div>
-                    ${managedNote}
-                </div>
-                <div class="flex gap-2 flex-shrink-0 ml-0 sm:ml-4 mt-4 sm:mt-0 self-start sm:self-center">${actionsHtml}</div>
-            </div>`;
+        return `<tr>${columns.map(c => `<td class="${c.class || ''}">${sanitizeHTML(c.render(item))}</td>`).join('')}<td class="text-right">${actionsHtml}</td></tr>`;
     }).join('');
-
-    listContainer.innerHTML = cardsHtml;
+    listContainer.innerHTML = `<table class="min-w-full divide-y divide-gray-200"><thead><tr>${tableHeaders}<th></th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${tableRows}</tbody></table>`;
 }
 
 function renderExpensesView() {
@@ -1262,20 +1226,10 @@ function renderDayView() {
         const left = 15 + (booking.column * width);
 
         const customer = state.customers.find(c => c.id === booking.customerId);
-        let bookingTitle = '';
-        let isMockTest = false;
-
-        if (booking.bookingType === 'lesson') {
-            const level = (booking.lessonLevel || 'standard').charAt(0).toUpperCase() + (booking.lessonLevel || 'standard').slice(1).replace('_', ' ');
-            bookingTitle = `${level} Lesson: ${customer ? customer.name : 'Unknown'}`;
-            isMockTest = booking.lessonLevel === 'mock_test';
-        } else {
-            const service = state.services.find(s => s.id === booking.serviceId);
-            bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
-            isMockTest = service && service.service_name.toLowerCase().includes('mock test');
-        }
-
+        const service = state.services.find(s => s.id === booking.serviceId);
+        const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
         const bookingClass = `timeline-booking ${isMockTest ? 'mock-test' : ''}`;
+        const bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
         return `<div onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
     }).join('');
 
@@ -1333,20 +1287,10 @@ function renderWeekView() {
 
         const bookingItems = dayBookings.map(b => {
             const customer = state.customers.find(c => c.id === b.customerId);
-            let bookingTitle = '';
-            let isMockTest = false;
-
-            if (b.bookingType === 'lesson') {
-                const level = (b.lessonLevel || 'standard').charAt(0).toUpperCase() + (b.lessonLevel || 'standard').slice(1).replace('_', ' ');
-                bookingTitle = `${level.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}`;
-                isMockTest = b.lessonLevel === 'mock_test';
-            } else {
-                const service = state.services.find(s => s.id === b.serviceId);
-                bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
-                isMockTest = service && service.service_name.toLowerCase().includes('mock test');
-            }
-
+            const service = state.services.find(s => s.id === b.serviceId);
+            const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
             const bookingClass = isMockTest ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200';
+            const bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
             return `<div onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
         }).join('');
 
@@ -1523,18 +1467,7 @@ function renderSummaryList() {
         const customer = state.customers.find(c => c.id === booking.customerId)?.name || 'N/A';
         const staff = state.staff.find(s => s.id === booking.staffId)?.name || 'N/A';
         const resource = booking.resourceIds && booking.resourceIds.length > 0 ? state.resources.find(r => r.id === booking.resourceIds[0])?.resource_name : 'N/A';
-
-        let serviceDescription = 'N/A';
-        if (booking.bookingType === 'lesson') {
-            const level = (booking.lessonLevel || 'standard').charAt(0).toUpperCase() + (booking.lessonLevel || 'standard').slice(1).replace('_', ' ');
-            serviceDescription = `${level} Lesson`;
-        } else {
-            const service = state.services.find(s => s.id === booking.serviceId);
-            if (service) {
-                serviceDescription = service.service_name;
-            }
-        }
-
+        const service = state.services.find(s => s.id === booking.serviceId)?.service_name || 'N/A';
         const date = parseYYYYMMDD(booking.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         return `
             <div class="p-3 border-b border-gray-200 grid grid-cols-6 gap-4 items-center">
@@ -1543,7 +1476,7 @@ function renderSummaryList() {
                 <p>${sanitizeHTML(customer)}</p>
                 <p>${sanitizeHTML(staff)}</p>
                 <p>${sanitizeHTML(resource)}</p>
-                <p>${sanitizeHTML(serviceDescription)}</p>
+                <p>${sanitizeHTML(service)}</p>
             </div>
         `;
     }).join('');
@@ -1997,10 +1930,9 @@ function saveBooking(event) {
     const customerId = document.getElementById('booking-customer').value;
     const staffId = document.getElementById('booking-staff').value;
     const resourceId = document.getElementById('booking-resource').value;
+    const serviceId = document.getElementById('booking-service').value;
     const newStatus = document.getElementById('booking-status').value;
     const newPaymentStatus = document.getElementById('booking-payment-status').value;
-
-    const bookingType = document.querySelector('input[name="booking-type"]:checked').value;
 
     const conflict = findBookingConflict({
         id: bookingId, date, startTime, endTime, customerId, staffId,
@@ -2015,7 +1947,7 @@ function saveBooking(event) {
         });
         return;
     }
-    const fee = calculateBookingFee();
+    const fee = calculateBookingFee(serviceId);
 
     const originalBooking = !isNewBooking ? state.bookings.find(b => b.id === bookingId) : null;
     const oldStatus = originalBooking ? originalBooking.status : null;
@@ -2064,22 +1996,13 @@ function saveBooking(event) {
         customerId: customerId,
         staffId: staffId,
         resourceIds: resourceId ? [resourceId] : [],
+        serviceId: serviceId,
         fee: fee,
         status: newStatus,
         paymentStatus: newPaymentStatus,
         pickup: document.getElementById('booking-pickup').value,
-        transactionId: transactionId,
-        bookingType: bookingType,
-        serviceId: null,
-        lessonLevel: null,
+        transactionId: transactionId
     };
-
-    if (bookingType === 'lesson') {
-        bookingData.lessonLevel = document.getElementById('booking-lesson-level').value;
-    } else { // tour
-        bookingData.serviceId = document.getElementById('booking-service').value;
-    }
-
 
     if (newStatus === 'Completed' && oldStatus !== 'Completed' && bookingData.paymentStatus === 'Unpaid') {
         openCompletionModal(bookingData);
@@ -2509,8 +2432,7 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
     const modal = document.getElementById('booking-modal');
     const form = modal.querySelector('form'); form.reset();
 
-    const tourServices = state.services.filter(s => s.service_type === 'TOUR');
-    populateSelect('booking-service', tourServices, false, 'service_name');
+    populateSelect('booking-service', state.services, false, 'service_name');
     populateSelect('booking-customer', state.customers);
     populateSelect('booking-staff', state.staff);
     populateSelect('booking-resource', state.resources, false, 'resource_name');
@@ -2525,26 +2447,14 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
         if(booking) {
             document.getElementById('booking-id').value = booking.id;
             document.getElementById('booking-date').value = booking.date;
+            document.getElementById('booking-service').value = booking.serviceId || DEFAULT_SERVICE_ID;
             document.getElementById('booking-customer').value = booking.customerId;
             document.getElementById('booking-staff').value = booking.staffId;
             document.getElementById('booking-resource').value = booking.resourceIds ? booking.resourceIds[0] : '';
             document.getElementById('booking-start-time').value = booking.startTime;
-            document.getElementById('booking-end-time').value = booking.endTime;
             document.getElementById('booking-pickup').value = booking.pickup || '';
             document.getElementById('booking-status').value = booking.status;
             document.getElementById('booking-payment-status').value = booking.paymentStatus;
-
-            const bookingType = booking.bookingType || 'tour'; // Default to tour for old data
-            document.querySelector(`input[name="booking-type"][value="${bookingType}"]`).checked = true;
-
-            if (bookingType === 'lesson') {
-                document.getElementById('booking-lesson-level').value = booking.lessonLevel || 'standard';
-            } else {
-                document.getElementById('booking-service').value = booking.serviceId || '';
-            }
-
-            handleBookingTypeChange(bookingType);
-
             leftActionsContainer.innerHTML = `
                 <button type="button" onclick="copySmsReminder('${bookingId}')" class="${btnSecondary}">Copy SMS Reminder</button>
                 <button type="button" onclick="exportToGoogleCalendar('${bookingId}')" class="${btnGreen}">Add to Google Calendar</button>
@@ -2556,14 +2466,14 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
         document.getElementById('booking-id').value = '';
         document.getElementById('booking-date').value = date;
         document.getElementById('booking-start-time').value = startTime || '09:00';
-        const defaultEndTime = minutesToTime(timeToMinutes(startTime || '09:00') + 60);
-        document.getElementById('booking-end-time').value = endTime || defaultEndTime;
         document.getElementById('booking-status').value = 'Scheduled';
         document.getElementById('booking-payment-status').value = 'Unpaid';
+    }
 
-        // Default to lesson view
-        document.querySelector('input[name="booking-type"][value="lesson"]').checked = true;
-        handleBookingTypeChange('lesson');
+    handleServiceSelectionChange();
+
+    if (endTime) {
+        document.getElementById('booking-end-time').value = endTime;
     }
 
     modal.classList.remove('hidden');
@@ -3379,7 +3289,6 @@ function copyToClipboard(text) {
 
 function populateTimeSelects() {
     const startTimeSelect = document.getElementById('booking-start-time');
-    const endTimeSelect = document.getElementById('booking-end-time');
     let optionsHtml = '';
     for (let i = 7; i <= 20; i++) {
         optionsHtml += `<option value="${String(i).padStart(2, '0')}:00">${String(i).padStart(2, '0')}:00</option>`;
@@ -3388,7 +3297,6 @@ function populateTimeSelects() {
         }
     }
     startTimeSelect.innerHTML = optionsHtml;
-    endTimeSelect.innerHTML = optionsHtml;
 }
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
@@ -3446,144 +3354,25 @@ function handleServiceSelectionChange() {
     document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
 }
 
-function handleBookingTypeChange(bookingType) {
-    const lessonFields = document.getElementById('lesson-specific-fields');
-    const tourFields = document.getElementById('tour-specific-fields');
-    const endTimeSelect = document.getElementById('booking-end-time');
-    const durationDisplay = document.getElementById('calculated-duration-display');
-
-    const lessonLevelSelect = document.getElementById('booking-lesson-level');
-    const serviceSelect = document.getElementById('booking-service');
-
-    if (bookingType === 'lesson') {
-        lessonFields.classList.remove('hidden');
-        tourFields.classList.add('hidden');
-        durationDisplay.classList.remove('hidden');
-        endTimeSelect.disabled = false;
-
-        lessonLevelSelect.required = true;
-        serviceSelect.required = false;
-
-        handleLessonBookingChange();
-    } else { // tour
-        lessonFields.classList.add('hidden');
-        tourFields.classList.remove('hidden');
-        durationDisplay.classList.add('hidden');
-        endTimeSelect.disabled = true;
-
-        lessonLevelSelect.required = false;
-        serviceSelect.required = true;
-
-        handleServiceSelectionChange();
-    }
+function handleStartTimeChange() {
+    handleServiceSelectionChange();
 }
 
-function handleLessonBookingChange() {
-    const lessonLevel = document.getElementById('booking-lesson-level').value;
-    const startTime = document.getElementById('booking-start-time').value;
-    const endTimeSelect = document.getElementById('booking-end-time');
-
-    if (lessonLevel === 'mock_test') {
-        endTimeSelect.disabled = true;
-        const mockTestDurationHours = state.settings.mockTestDuration || 1.5;
-        const durationMinutes = mockTestDurationHours * 60;
-        if (startTime) {
-            const newEndTime = minutesToTime(timeToMinutes(startTime) + durationMinutes);
-            if (endTimeSelect.value !== newEndTime) {
-                endTimeSelect.value = newEndTime;
-            }
-        }
-    } else {
-        endTimeSelect.disabled = false;
-    }
-
-    const endTime = endTimeSelect.value;
-    const durationSpan = document.getElementById('calculated-duration');
-
-    if (!startTime || !endTime) {
-        durationSpan.textContent = '0 minutes';
-        return;
-    }
-
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
-    const duration = endMinutes - startMinutes;
-
-    if (duration > 0) {
-        durationSpan.textContent = `${duration} minutes`;
-        durationSpan.parentElement.classList.remove('bg-red-100');
-    } else if (duration === 0) {
-        durationSpan.textContent = '0 minutes';
-        durationSpan.parentElement.classList.remove('bg-red-100');
-    } else {
-        durationSpan.textContent = `Invalid range`;
-        durationSpan.parentElement.classList.add('bg-red-100');
-    }
-
-    const fee = calculateBookingFee();
-    document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
-}
-
-function handleServiceSelectionChange() {
-    const serviceId = document.getElementById('booking-service').value;
-    if (!serviceId) return;
-
+function calculateBookingFee(serviceId) {
     const service = state.services.find(s => s.id === serviceId);
-    if (!service) return;
+    if (!service) return 0;
 
-    const startTime = document.getElementById('booking-start-time').value;
-    const newEndTime = minutesToTime(timeToMinutes(startTime) + service.duration_minutes);
+    const rules = service.pricing_rules || {};
 
-    const endTimeSelect = document.getElementById('booking-end-time');
-    endTimeSelect.value = newEndTime;
-
-    // Recalculate fee with the correct function call
-    const fee = calculateBookingFee();
-    document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
-}
-
-function calculateBookingFee() {
-    const bookingType = document.querySelector('input[name="booking-type"]:checked').value;
-
-    if (bookingType === 'lesson') {
-        const level = document.getElementById('booking-lesson-level').value;
-        const startTime = document.getElementById('booking-start-time').value;
-        const endTime = document.getElementById('booking-end-time').value;
-
-        if (!startTime || !endTime) return 0;
-
-        const durationInMinutes = timeToMinutes(endTime) - timeToMinutes(startTime);
-        if (durationInMinutes <= 0) return 0;
-
-        const durationInHours = durationInMinutes / 60;
-        let hourlyRate = 0;
-
-        if (level === 'mock_test') {
-            // Mock tests have a fixed price, not per hour. Find the service and return its price.
-            const mockTestService = state.services.find(s => s.id === MOCK_TEST_SERVICE_ID);
-            return mockTestService ? mockTestService.base_price : (state.settings.mockTestRate || 0);
-        } else if (state.settings.rates[level]) {
-            hourlyRate = state.settings.rates[level];
-        }
-
-        return durationInHours * hourlyRate;
-
-    } else { // tour
-        const serviceId = document.getElementById('booking-service').value;
-        if (!serviceId) return 0;
-
-        const service = state.services.find(s => s.id === serviceId);
-        if (!service) return 0;
-
-        const rules = service.pricing_rules || {};
-        if (rules.type === 'fixed') {
-            return service.base_price || 0;
-        }
-        if (rules.type === 'tiered' && rules.tiers && rules.tiers.length > 0) {
-            return rules.tiers[0].price || 0; // Default to first tier price for now
-        }
+    if (rules.type === 'fixed') {
         return service.base_price || 0;
     }
+
+    if (rules.type === 'tiered' && rules.tiers && rules.tiers.length > 0) {
+        return rules.tiers[0].price || 0;
+    }
+
+    return service.base_price || 0;
 }
 
 function updateStaffAvailability(date) {
