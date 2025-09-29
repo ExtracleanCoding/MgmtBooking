@@ -269,8 +269,8 @@ function runDataMigration() {
     localStorage.removeItem('students');
     localStorage.removeItem('instructors');
     localStorage.removeItem('vehicles');
-    // The line below was deleting the new bookings data.
-    // localStorage.removeItem('bookings');
+    // Also remove the old bookings key to prevent orphaned data
+    // localStorage.removeItem('bookings'); // This line was deleting the new bookings data.
     localStorage.setItem(MIGRATION_KEY, 'true');
     showToast("Data model updated to v3.0.0!");
 }
