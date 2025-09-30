@@ -1230,10 +1230,10 @@ function renderDayView() {
         const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
         const bookingClass = `timeline-booking ${isMockTest ? 'mock-test' : ''}`;
         const bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
-        return `<div onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
+        return `<div draggable="true" ondragstart="handleDragStart(event, '${booking.id}')" onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
     }).join('');
 
-    container.innerHTML = `<div id="day-timeline" class="relative overflow-y-auto no-scrollbar border-t border-gray-200" style="height: 600px;" ${!isPast ? 'onmousedown="startDrag(event)"' : ''}><div class="ml-16">${hourSlots}</div><div class="absolute top-0 left-0 right-0 bottom-0">${bookingHtml}<div id="selection-box" class="hidden"></div></div></div>`;
+    container.innerHTML = `<div id="day-timeline" ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)" class="relative overflow-y-auto no-scrollbar border-t border-gray-200" style="height: 600px;" ${!isPast ? 'onmousedown="startDrag(event)"' : ''}><div class="ml-16">${hourSlots}</div><div class="absolute top-0 left-0 right-0 bottom-0">${bookingHtml}<div id="selection-box" class="hidden"></div></div></div>`;
     selectionBox = document.getElementById('selection-box');
 }
 
@@ -1291,7 +1291,7 @@ function renderWeekView() {
             const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
             const bookingClass = isMockTest ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200';
             const bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
-            return `<div onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
+            return `<div draggable="true" ondragstart="handleDragStart(event, '${b.id}')" onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
         }).join('');
 
         let blockedContent = '';
@@ -1304,7 +1304,8 @@ function renderWeekView() {
             }).join('');
         }
 
-        weekHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs}><div class="flex justify-between items-center"><span class="day-number ${isToday ? 'is-today' : ''}">${day.getDate()}</span>${!isPast && !isSchoolHoliday && dayBookings.length === 0 ? `<button onclick="event.stopPropagation(); openBookingModal('${dateString}');" class="text-gray-400 hover:text-indigo-600 text-xl">+</button>` : ''}</div><div class="mt-1 space-y-1">${blockedContent}${bookingItems}</div></div>`;
+        const dropHandlers = isPast ? '' : `ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)"`;
+        weekHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs} ${dropHandlers}><div class="flex justify-between items-center"><span class="day-number ${isToday ? 'is-today' : ''}">${day.getDate()}</span>${!isPast && !isSchoolHoliday && dayBookings.length === 0 ? `<button onclick="event.stopPropagation(); openBookingModal('${dateString}');" class="text-gray-400 hover:text-indigo-600 text-xl">+</button>` : ''}</div><div class="mt-1 space-y-1">${blockedContent}${bookingItems}</div></div>`;
     }
     weekHtml += '</div>';
     container.innerHTML = weekHtml;
@@ -1362,7 +1363,8 @@ function renderMonthView() {
             content += bookingContent;
         }
 
-        gridHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs}>${content}</div>`;
+        const dropHandlers = isPast ? '' : `ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)"`;
+        gridHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs} ${dropHandlers}>${content}</div>`;
     }
     gridHtml += `</div>`;
     container.innerHTML = gridHtml;
@@ -3443,6 +3445,108 @@ function endDrag(e) {
     }
     openBookingModal(toLocalDateString(currentDate), null, startTime, endTime);
 }
+
+// --- Drag and Drop Handlers ---
+
+function handleDragStart(event, bookingId) {
+    event.dataTransfer.setData("text/plain", bookingId);
+    event.dataTransfer.effectAllowed = 'move';
+    // Add a class to the dragged element for styling
+    setTimeout(() => {
+        // Check if the target exists before adding a class
+        if(event.target && typeof event.target.classList !== 'undefined') {
+            event.target.classList.add('dragging');
+        }
+    }, 0);
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+function handleDragEnter(event) {
+    event.preventDefault();
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(event) {
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.remove('drag-over');
+    }
+}
+
+function drop(event, newDate) {
+    event.preventDefault();
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.remove('drag-over');
+    }
+
+    const bookingId = event.dataTransfer.getData("text/plain");
+    // Find and remove the 'dragging' class from the original element
+    const draggedElement = document.querySelector('.dragging');
+    if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+    }
+
+    const bookingIndex = state.bookings.findIndex(b => b.id === bookingId);
+    if (bookingIndex === -1) {
+        console.error("Could not find booking to drop:", bookingId);
+        return;
+    }
+
+    const originalBooking = state.bookings[bookingIndex];
+
+    // Create a deep copy to modify
+    const updatedBooking = JSON.parse(JSON.stringify(originalBooking));
+    updatedBooking.date = newDate;
+
+    // If dropping on the day view, calculate the new time
+    if (currentView === 'day') {
+        const timeline = document.getElementById('day-timeline');
+        const rect = timeline.getBoundingClientRect();
+        // Calculate the drop position relative to the timeline div
+        const dropY = event.clientY - rect.top;
+
+        const originalDuration = timeToMinutes(originalBooking.endTime) - timeToMinutes(originalBooking.startTime);
+        const newStartTime = pixelsToTime(dropY);
+        const newEndTime = minutesToTime(timeToMinutes(newStartTime) + originalDuration);
+
+        updatedBooking.startTime = newStartTime;
+        updatedBooking.endTime = newEndTime;
+    }
+    // For week/month view drops, we keep the original start/end times, only the date changes.
+
+    const conflict = findBookingConflict(updatedBooking);
+    if (conflict) {
+        showDialog({
+            title: 'Booking Conflict',
+            message: `Cannot move booking. ${conflict}`,
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // Check for user intent: move vs copy
+    if (event.ctrlKey || event.metaKey) { // Copy on Ctrl/Cmd + Drop
+        updatedBooking.id = `booking_${generateUUID()}`; // new ID for the copy
+        updatedBooking.transactionId = null; // a copy isn't paid for
+        updatedBooking.paymentStatus = 'Unpaid';
+        state.bookings.push(updatedBooking);
+        showToast('Booking copied.');
+    } else { // Move
+        state.bookings[bookingIndex] = updatedBooking;
+        showToast('Booking moved.');
+    }
+
+    debouncedSaveState();
+    refreshCurrentView();
+}
+
 
 function pixelsToTime(pixels) {
     const startHourMinutes = CALENDAR_START_HOUR * 60;
