@@ -456,6 +456,16 @@ function loadState() {
 
         const savedSettings = safeJSONParse(DB_KEYS.SETTINGS, {});
         state.settings = deepMerge(defaultSettings, savedSettings);
+
+        // Clean up legacy, unused settings properties for data hygiene.
+        // This is a one-time operation per user.
+        if (state.settings.hasOwnProperty('rates')) {
+            delete state.settings.rates;
+        }
+        if (state.settings.hasOwnProperty('suggestionCount')) {
+            delete state.settings.suggestionCount;
+        }
+
     } catch (error) {
         console.error("Failed to load state from localStorage:", error);
         showDialog({
