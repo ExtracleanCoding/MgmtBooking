@@ -487,6 +487,7 @@ function loadState() {
             mockTestDuration: 1.5,
             packages: [],
             suggestionCount: 3,
+            autoNotifyWaitingList: true,
             instructorName: 'Ray Ryan',
             instructorAddress: '123 Driving School Ln, Town, T12 3AB',
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
@@ -606,6 +607,7 @@ function handleSaveSettings(event) {
     state.settings.smsTemplate = document.getElementById('sms-template').value;
     state.settings.firstDayOfWeek = document.getElementById('first-day-of-week').value;
     state.settings.suggestionCount = parseInt(document.getElementById('suggestion-count').value, 10) || 3;
+    state.settings.autoNotifyWaitingList = document.getElementById('auto-notify-waiting-list').checked;
 
     // New AI settings save logic
     const provider = document.getElementById('ai-provider').value;
@@ -1071,6 +1073,13 @@ function renderSettingsView() {
                                 <label for="suggestion-count" class="block mb-1 text-sm font-medium text-gray-700">Conflict Suggestion Count</label>
                                 <input type="number" id="suggestion-count" value="${state.settings.suggestionCount || 3}" min="1" max="10" class="w-full">
                             </div>
+                        </div>
+                        <div class="mt-4 flex items-center justify-between">
+                            <span class="flex-grow flex flex-col">
+                                <span class="text-sm font-medium text-gray-900">Auto-Notify Waiting List</span>
+                                <span class="text-sm text-gray-500">Automatically send an SMS when a slot opens up.</span>
+                            </span>
+                            <input type="checkbox" id="auto-notify-waiting-list" ${state.settings.autoNotifyWaitingList ? 'checked' : ''} class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
                         </div>
                     </div>
                     <div class="border-t border-gray-200 pt-6">
@@ -1935,33 +1944,41 @@ function findAvailableSlots(bookingDetails) {
     const suggestionCount = state.settings.suggestionCount || 3;
     let searchDate = parseYYYYMMDD(date);
     let searchTime = timeToMinutes(bookingDetails.startTime);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Limit search to a few days to prevent infinite loops
+    // Limit search to a reasonable number of days to prevent infinite loops
     const maxSearchDays = 14;
     let daysSearched = 0;
 
     while (suggestions.length < suggestionCount && daysSearched < maxSearchDays) {
-        // Increment search time by the slot interval
+        // Increment search time by the slot interval for the next potential start time
         searchTime += TIMESLOT_INTERVAL_MINUTES;
 
-        // If we've gone past the end of the working day, reset to the next day
+        // If the search time exceeds the calendar's end hour, reset to the next day's start
         if (searchTime >= (CALENDAR_END_HOUR * 60)) {
             searchDate.setDate(searchDate.getDate() + 1);
             searchTime = CALENDAR_START_HOUR * 60;
             daysSearched++;
+            continue; // Move to the next iteration to check the new day
+        }
+
+        // Do not suggest slots in the past
+        if (searchDate < today) {
             continue;
         }
 
         const newStartTime = minutesToTime(searchTime);
         const newEndTime = minutesToTime(searchTime + durationMinutes);
 
-        // Check if the new slot goes beyond the calendar end time
+        // Ensure the calculated end time doesn't exceed the calendar's operating hours
         if (timeToMinutes(newEndTime) > (CALENDAR_END_HOUR * 60)) {
             continue;
         }
 
+        // Construct a temporary booking object to check for conflicts
         const potentialBooking = {
-            id: id,
+            id: id, // Use the original booking ID to avoid self-conflict
             date: toLocalDateString(searchDate),
             startTime: newStartTime,
             endTime: newEndTime,
@@ -1970,9 +1987,8 @@ function findAvailableSlots(bookingDetails) {
             customerId
         };
 
-        const conflict = findBookingConflict(potentialBooking);
-
-        if (!conflict) {
+        // If no conflict is found for the potential slot, add it to suggestions
+        if (!findBookingConflict(potentialBooking)) {
             suggestions.push({
                 date: toLocalDateString(searchDate),
                 startTime: newStartTime,
@@ -3748,7 +3764,7 @@ function pixelsToTime(pixels) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border-blue-500 text-blue-700', onClick, isDismissible = true}) {
+function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border-blue-500 text-blue-700', onClick, buttonText = 'View', isDismissible = true}) {
     const container = document.getElementById('dashboard-notifications');
     if (document.getElementById(id)) return;
 
@@ -3762,7 +3778,7 @@ function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border
     let content = `<div class="flex-grow">${message}</div>`;
 
     if (onClick) {
-        const button = `<button onclick="${onClick}" class="ml-4 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">View</button>`;
+        const button = `<button onclick="${onClick}" class="ml-4 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">${buttonText}</button>`;
         content += button;
     }
 
@@ -3775,24 +3791,58 @@ function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border
     container.appendChild(alertDiv);
 }
 
+function handleWaitingListNotificationClick(waitlistItemId) {
+    const entry = state.waitingList.find(item => item.id === waitlistItemId);
+    if (entry) {
+        sendWaitingListSms(entry);
+        state.waitingList = state.waitingList.filter(item => item.id !== waitlistItemId);
+        debouncedSaveState();
+        const notificationEl = document.getElementById(`wl_notification_${waitlistItemId}`);
+        if (notificationEl) {
+            notificationEl.remove();
+        }
+        showToast('Notification sent and item removed from waiting list.');
+        if (currentView === 'waiting-list') {
+            renderWaitingListView();
+        }
+    }
+}
+
 function checkWaitingListFor(cancelledBooking) {
     if (!cancelledBooking) return;
-    const matchingEntries = state.waitingList.filter(item =>
-        item.date === cancelledBooking.date &&
-        item.startTime === cancelledBooking.startTime &&
-        item.endTime === cancelledBooking.endTime &&
-        (item.staffId === cancelledBooking.staffId || (item.resourceIds && cancelledBooking.resourceIds && item.resourceIds.some(r => cancelledBooking.resourceIds.includes(r))))
-    );
+
+    const matchingEntries = state.waitingList
+        .filter(item => {
+            const dateMatch = item.date === cancelledBooking.date;
+            const timeMatch = item.startTime === cancelledBooking.startTime && item.endTime === cancelledBooking.endTime;
+            const staffMatch = !item.staffId || item.staffId === 'any' || item.staffId === cancelledBooking.staffId;
+            const resourceMatch = !item.resourceIds || item.resourceIds.length === 0 ||
+                                  (cancelledBooking.resourceIds && cancelledBooking.resourceIds.some(r => item.resourceIds.includes(r)));
+            return dateMatch && timeMatch && staffMatch && resourceMatch;
+        })
+        .sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt));
+
+    if (matchingEntries.length === 0) return;
 
     matchingEntries.forEach(entry => {
         const customer = state.customers.find(s => s.id === entry.customerId);
         if (customer) {
-            addDashboardNotification({
-                id: `wl_notification_${entry.id}`,
-                message: `A slot has opened up for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
-                alertClass: 'bg-green-100 border-green-500 text-green-800',
-                onClick: `showView('waiting-list')`
-            });
+            if (state.settings.autoNotifyWaitingList) {
+                addDashboardNotification({
+                    id: `wl_notification_${entry.id}`,
+                    message: `A slot has opened for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
+                    alertClass: 'bg-green-100 border-green-500 text-green-800',
+                    onClick: `handleWaitingListNotificationClick('${entry.id}')`,
+                    buttonText: 'Notify'
+                });
+            } else {
+                addDashboardNotification({
+                    id: `wl_notification_${entry.id}`,
+                    message: `A slot has opened up for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
+                    alertClass: 'bg-green-100 border-green-500 text-green-800',
+                    onClick: `showView('waiting-list')`
+                });
+            }
         }
     });
 }
@@ -3887,6 +3937,34 @@ function copyPaymentReminder(customerId) {
     if (totalDue <= 0) { showToast("No outstanding balance to remind."); return; }
     const message = `Hi ${customer.name.split(' ')[0]}, just a friendly reminder that you have an outstanding balance of €${totalDue.toFixed(2)}. Please let me know if you have any questions. Thanks, ${state.settings.instructorName}.`;
     copyToClipboard(message);
+}
+
+function sendWaitingListSms(waitlistItem) {
+    const customer = state.customers.find(c => c.id === waitlistItem.customerId);
+    if (!customer || !customer.phone) {
+        console.warn('Cannot send waiting list SMS: customer or phone number not found.', waitlistItem);
+        return;
+    }
+
+    let message = state.settings.smsTemplate || 'Hi [CustomerFirstName], a slot has opened up on [LessonDate] at [LessonTime]. Please contact us to book.';
+
+    const customerFirstName = customer.name.split(' ')[0];
+    const lessonDate = parseYYYYMMDD(waitlistItem.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const lessonTime = waitlistItem.startTime;
+    const instructorName = state.settings.instructorName;
+
+    message = message.replace(/\[CustomerFirstName\]/g, customerFirstName)
+                     .replace(/\[CustomerFullName\]/g, customer.name)
+                     .replace(/\[LessonDate\]/g, lessonDate)
+                     .replace(/\[LessonTime\]/g, lessonTime)
+                     .replace(/\[InstructorName\]/g, instructorName);
+
+    // Create and trigger an sms link
+    const link = document.createElement('a');
+    link.href = `sms:${customer.phone}?body=${encodeURIComponent(message)}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function formatGoogleCalendarDateUTC(date, time) {
