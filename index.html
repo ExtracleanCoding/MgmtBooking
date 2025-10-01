@@ -349,6 +349,10 @@
                         <div><label for="resource-model" class="block mb-1 text-sm font-medium">Model</label><input type="text" id="resource-model" class="w-full"></div>
                     </div>
                     <div><label for="resource-reg" class="block mb-1 text-sm font-medium">Registration</label><input type="text" id="resource-reg" class="w-full"></div>
+                    <div>
+                        <label for="resource-mileage" class="block mb-1 text-sm font-medium">Initial Mileage (km)</label>
+                        <input type="number" id="resource-mileage" class="w-full" placeholder="e.g., 50000">
+                    </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-4 mt-2">
                         <div><label for="resource-mot" class="block mb-1 text-sm font-medium">MOT Due</label><input type="date" id="resource-mot" class="w-full"></div>
                         <div><label for="resource-tax" class="block mb-1 text-sm font-medium">Tax Due</label><input type="date" id="resource-tax" class="w-full"></div>
@@ -426,6 +430,16 @@
             <div class="modal-header"><h3 id="completion-modal-title">Complete Lesson</h3></div>
             <div class="p-6 space-y-4">
                 <p id="completion-message" class="text-gray-600"></p>
+                <div id="mileage-fields" class="grid grid-cols-2 gap-4 pt-4 border-t">
+                    <div>
+                        <label for="completion-start-mileage" class="block text-sm font-medium text-gray-700">Start Mileage</label>
+                        <input type="number" id="completion-start-mileage" class="w-full mt-1" placeholder="e.g., 50123">
+                    </div>
+                    <div>
+                        <label for="completion-end-mileage" class="block text-sm font-medium text-gray-700">End Mileage</label>
+                        <input type="number" id="completion-end-mileage" class="w-full mt-1" placeholder="e.g., 50145">
+                    </div>
+                </div>
                 <div id="completion-credit-info" class="p-3 bg-blue-50 text-blue-800 rounded-md text-sm"></div>
                 <div id="completion-buttons" class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t">
                     <!-- Buttons are injected by JS -->

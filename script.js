@@ -1927,11 +1927,91 @@ function renderReportsView() {
                     <canvas id="peakBookingHoursChart"></canvas>
                 </div>
 
+                <div class="bg-gray-50 p-4 rounded-lg lg:col-span-2">
+                    <h3 class="text-lg font-semibold mb-4 text-center">Mileage & Efficiency Report</h3>
+                    <div id="mileage-report-container"></div>
+                </div>
+
             </div>
         </div>
     `;
     generateOverdueReport();
     generateCharts();
+    generateMileageReport();
+}
+
+function generateMileageReport() {
+    const container = document.getElementById('mileage-report-container');
+
+    const mileageBookings = state.bookings.filter(b =>
+        b.status === 'Completed' &&
+        b.startMileage !== null &&
+        b.endMileage !== null &&
+        b.endMileage > b.startMileage
+    );
+
+    if (mileageBookings.length === 0) {
+        container.innerHTML = '<p class="text-center py-4 text-gray-500">No mileage data recorded yet. Complete a booking with mileage to see the report.</p>';
+        return;
+    }
+
+    const vehicleMileage = {};
+
+    mileageBookings.forEach(booking => {
+        const vehicleId = booking.resourceIds && booking.resourceIds[0];
+        if (!vehicleId) return;
+
+        if (!vehicleMileage[vehicleId]) {
+            const vehicle = state.resources.find(r => r.id === vehicleId);
+            vehicleMileage[vehicleId] = {
+                name: vehicle ? vehicle.resource_name : 'Unknown Vehicle',
+                totalDistance: 0,
+                tripCount: 0
+            };
+        }
+
+        const distance = booking.endMileage - booking.startMileage;
+        vehicleMileage[vehicleId].totalDistance += distance;
+        vehicleMileage[vehicleId].tripCount++;
+    });
+
+    const fuelExpenses = state.expenses.filter(e => e.category === 'Fuel');
+    const totalFuelCost = fuelExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalDistanceAllVehicles = Object.values(vehicleMileage).reduce((sum, v) => sum + v.totalDistance, 0);
+
+    const tableRows = Object.values(vehicleMileage).map(vehicle => `
+        <tr>
+            <td class="font-medium">${sanitizeHTML(vehicle.name)}</td>
+            <td class="text-center">${vehicle.tripCount}</td>
+            <td class="text-right font-bold">${vehicle.totalDistance.toLocaleString()} km</td>
+        </tr>
+    `).join('');
+
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
+            <div class="p-4 bg-white rounded-lg shadow">
+                <h4 class="text-sm font-semibold text-gray-600">Total Distance (All Vehicles)</h4>
+                <p class="text-2xl font-bold text-indigo-600">${totalDistanceAllVehicles.toLocaleString()} km</p>
+            </div>
+            <div class="p-4 bg-white rounded-lg shadow">
+                <h4 class="text-sm font-semibold text-gray-600">Total Fuel Cost</h4>
+                <p class="text-2xl font-bold text-red-600">€${totalFuelCost.toFixed(2)}</p>
+            </div>
+        </div>
+        <div class="overflow-x-auto mt-4">
+            <table class="min-w-full bg-white rounded-md">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="text-left">Vehicle</th>
+                        <th class="text-center">Trips Logged</th>
+                        <th class="text-right">Total Distance</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">${tableRows}</tbody>
+            </table>
+            <p class="text-xs text-gray-500 mt-2 text-center">Note: Efficiency is calculated based on all fuel expenses and may not be vehicle-specific.</p>
+        </div>
+    `;
 }
 
 
@@ -2156,7 +2236,9 @@ function saveBooking(event) {
         status: newStatus,
         paymentStatus: newPaymentStatus,
         pickup: document.getElementById('booking-pickup').value,
-        transactionId: transactionId
+        transactionId: transactionId,
+        startMileage: null,
+        endMileage: null
     };
 
     if (newStatus === 'Completed' && oldStatus !== 'Completed' && bookingData.paymentStatus === 'Unpaid') {
@@ -2168,6 +2250,34 @@ function saveBooking(event) {
 
 
 function finalizeSaveBooking(bookingData, oldStatus = null) {
+    // If the booking is being marked as completed, check if it's from the completion modal
+    const completionModal = document.getElementById('completion-modal');
+    const isCompletionModalOpen = completionModal && !completionModal.classList.contains('hidden');
+
+    if (bookingData.status === 'Completed' && isCompletionModalOpen) {
+        const startMileageInput = document.getElementById('completion-start-mileage');
+        const endMileageInput = document.getElementById('completion-end-mileage');
+
+        if (startMileageInput && endMileageInput) {
+            const startMileage = startMileageInput.value;
+            const endMileage = endMileageInput.value;
+
+            if (startMileage && endMileage) {
+                bookingData.startMileage = parseInt(startMileage, 10);
+                bookingData.endMileage = parseInt(endMileage, 10);
+
+                // Update the vehicle's last known mileage
+                const vehicleId = bookingData.resourceIds && bookingData.resourceIds[0];
+                if (vehicleId) {
+                    const vehicleIndex = state.resources.findIndex(r => r.id === vehicleId);
+                    if (vehicleIndex !== -1) {
+                        state.resources[vehicleIndex].lastKnownMileage = bookingData.endMileage;
+                    }
+                }
+            }
+        }
+    }
+
     if (bookingData.id && state.bookings.some(b => b.id === bookingData.id)) {
         const index = state.bookings.findIndex(b => b.id === bookingData.id);
         state.bookings[index] = bookingData;
@@ -2343,11 +2453,18 @@ function saveResource(event) {
             mot: document.getElementById('resource-mot').value,
             tax: document.getElementById('resource-tax').value,
             service: document.getElementById('resource-service').value,
-        }
+        },
+        lastKnownMileage: parseInt(document.getElementById('resource-mileage').value, 10) || 0
     };
     if (resourceId) {
         const index = state.resources.findIndex(r => r.id === resourceId);
-        if (index !== -1) state.resources[index] = { ...state.resources[index], ...resourceData };
+        if (index !== -1) {
+            // Preserve existing mileage if not provided on edit
+            if (!resourceData.lastKnownMileage) {
+                resourceData.lastKnownMileage = state.resources[index].lastKnownMileage || 0;
+            }
+            state.resources[index] = { ...state.resources[index], ...resourceData };
+        }
     } else {
         state.resources.push(resourceData);
     }
@@ -3161,6 +3278,7 @@ function openResourceModal(resourceId = null) {
             document.getElementById('resource-mot').value = schedule.mot || '';
             document.getElementById('resource-tax').value = schedule.tax || '';
             document.getElementById('resource-service').value = schedule.service || '';
+            document.getElementById('resource-mileage').value = resource.lastKnownMileage || '';
         }
     } else {
         document.getElementById('resource-modal-title').textContent = 'New Resource';
@@ -3297,20 +3415,36 @@ function openCompletionModal(bookingData) {
 
     document.getElementById('completion-message').textContent = `Mark lesson for ${customer.name} as complete. How was it paid?`;
 
+    // --- Mileage Fields Logic ---
+    const mileageFields = document.getElementById('mileage-fields');
+    const vehicleId = bookingData.resourceIds && bookingData.resourceIds[0];
+    const vehicle = vehicleId ? state.resources.find(r => r.id === vehicleId && r.resource_type === 'VEHICLE') : null;
+
+    if (vehicle) {
+        mileageFields.style.display = 'grid';
+        const startMileageInput = document.getElementById('completion-start-mileage');
+        startMileageInput.value = vehicle.lastKnownMileage || '';
+        document.getElementById('completion-end-mileage').value = '';
+    } else {
+        mileageFields.style.display = 'none';
+    }
+
     const creditInfoEl = document.getElementById('completion-credit-info');
     const currentCredits = customer.driving_school_details?.lesson_credits || 0;
-    creditInfoEl.innerHTML = `Customer has <strong>${currentCredits}</strong> hours of credit. This lesson is <strong>${durationHours.toFixed(1)}</strong> hours.`;
+    creditInfoEl.innerHTML = `Customer has <strong>${currentCredits.toFixed(1)}</strong> hours of credit. This lesson is <strong>${durationHours.toFixed(1)}</strong> hours.`;
 
     const buttonsContainer = document.getElementById('completion-buttons');
     buttonsContainer.innerHTML = `<button id="complete-paid-btn" class="${btnGreen}">Paid Now</button><button id="complete-credit-btn" class="${btnPrimary}">Use Lesson Credits</button><button id="complete-unpaid-btn" class="${btnSecondary}">Remains Unpaid</button><button onclick="closeCompletionModal()" class="${btnSecondary}">Cancel</button>`;
 
     document.getElementById('complete-paid-btn').onclick = () => {
+        bookingData.status = 'Completed';
         bookingData.paymentStatus = 'Paid';
         finalizeSaveBooking(bookingData);
         closeCompletionModal();
     };
 
     document.getElementById('complete-unpaid-btn').onclick = () => {
+        bookingData.status = 'Completed';
         bookingData.paymentStatus = 'Unpaid';
         finalizeSaveBooking(bookingData);
         closeCompletionModal();
@@ -3326,6 +3460,7 @@ function openCompletionModal(bookingData) {
             const customerIndex = state.customers.findIndex(s => s.id === customer.id);
             state.customers[customerIndex].driving_school_details.lesson_credits -= durationHours;
 
+            bookingData.status = 'Completed';
             bookingData.paymentStatus = 'Paid (Credit)';
             finalizeSaveBooking(bookingData);
             showToast(`Deducted ${durationHours.toFixed(1)} hours from ${customer.name}. New balance: ${state.customers[customerIndex].driving_school_details.lesson_credits.toFixed(1)} hours.`);
