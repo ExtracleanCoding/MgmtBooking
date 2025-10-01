@@ -4591,10 +4591,10 @@ function generateCharts() {
 
     if (lessonPackagePopularityReport && lessonPackagePopularityReport.data.length > 0) {
         createChart('lessonPackagePopularityChart', 'bar', {
-            labels: lessonPackagePopularityReport.data.map(item => item.name),
+            labels: lessonPackagePopularityReport.data.map(item => item[0]),
             datasets: [{
                 label: 'Number of Times Booked/Sold',
-                data: lessonPackagePopularityReport.data.map(item => item.count),
+                data: lessonPackagePopularityReport.data.map(item => item[1]),
                 backgroundColor: 'rgba(75, 192, 192, 0.5)',
                 borderColor: 'rgba(75, 192, 192, 1)',
                 borderWidth: 1
