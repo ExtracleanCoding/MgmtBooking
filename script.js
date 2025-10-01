@@ -35,14 +35,84 @@ function generateUUID() {
     });
 }
 
+
+function updateVehicleComplianceStatus() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    state.resources.forEach(resource => {
+        if (resource.resource_type === 'VEHICLE') {
+            let isCompliant = true;
+            if (resource.maintenance_schedule) {
+                const motDate = parseYYYYMMDD(resource.maintenance_schedule.mot);
+                const taxDate = parseYYYYMMDD(resource.maintenance_schedule.tax);
+
+                if (motDate && motDate < today) {
+                    isCompliant = false;
+                }
+                if (taxDate && taxDate < today) {
+                    isCompliant = false;
+                }
+            }
+            resource.isCompliant = isCompliant;
+        }
+    });
+}
+
 function checkVehicleCompliance() {
-    // TODO: Implement actual vehicle compliance check
-    console.log("Checking vehicle compliance...");
+    const notificationsContainer = document.getElementById('dashboard-notifications');
+    notificationsContainer.querySelectorAll('.vehicle-compliance-alert').forEach(el => el.remove());
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    state.resources.filter(r => r.resource_type === 'VEHICLE').forEach(vehicle => {
+        const checkDate = (dateString, type) => {
+            if (!dateString) return;
+            const dueDate = parseYYYYMMDD(dateString);
+            const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            let message = '', alertClass = '';
+
+            if (diffDays < 0) {
+                message = `${type} for ${sanitizeHTML(vehicle.resource_name)} (${sanitizeHTML(vehicle.reg)}) was due ${Math.abs(diffDays)} days ago.`;
+                alertClass = 'bg-red-100 border-red-500 text-red-700';
+            } else if (diffDays <= 30) {
+                message = `${type} for ${sanitizeHTML(vehicle.resource_name)} (${sanitizeHTML(vehicle.reg)}) is due in ${diffDays} days.`;
+                alertClass = 'bg-amber-100 border-amber-500 text-amber-700';
+            }
+
+            if (message) {
+                addDashboardNotification({
+                    id: `compliance_${vehicle.id}_${type}`,
+                    message: message,
+                    alertClass: alertClass,
+                    onClick: `showView('resources')`
+                });
+            }
+        };
+        if(vehicle.maintenance_schedule){
+            checkDate(vehicle.maintenance_schedule.mot, 'MOT');
+            checkDate(vehicle.maintenance_schedule.tax, 'Tax');
+            checkDate(vehicle.maintenance_schedule.service, 'Service');
+        }
+    });
 }
 
 function checkOverduePayments() {
-    // TODO: Implement actual overdue payments check
-    console.log("Checking for overdue payments...");
+    const notificationsContainer = document.getElementById('dashboard-notifications');
+    notificationsContainer.querySelectorAll('.overdue-payment-alert').forEach(el => el.remove());
+
+    const overdueCustomers = getCustomerSummaries().filter(s => s.outstanding > 0);
+
+    if (overdueCustomers.length > 0) {
+        const message = `There are <strong>${overdueCustomers.length} customers</strong> with outstanding payments.`;
+        addDashboardNotification({
+            id: 'overdue_payment_alert_summary',
+            message: message,
+            alertClass: 'bg-red-100 border-red-500 text-red-700',
+            onClick: `showView('billing')`
+        });
+    }
 }
 
 /******************************************************************************
@@ -164,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateClock, 1000);
     populateTimeSelects();
     renderApp();
+    updateVehicleComplianceStatus();
     checkVehicleCompliance();
     checkOverduePayments();
 
@@ -1892,6 +1963,12 @@ function findBookingConflict(bookingDetails) {
             const resourceName = state.resources.find(res => res.id === resourceIds[0])?.resource_name || 'The resource';
             return `${resourceName} is already booked from ${resourceConflict.startTime} to ${resourceConflict.endTime}.`;
         }
+
+        const resourceId = resourceIds[0];
+        const resource = state.resources.find(r => r.id === resourceId);
+        if (resource && resource.resource_type === 'VEHICLE' && resource.isCompliant === false) {
+            return `The selected vehicle (${resource.resource_name}) has an expired MOT or Tax and cannot be booked.`;
+        }
     }
 
     // Check for staff leave
@@ -2185,9 +2262,10 @@ function saveResource(event) {
         state.resources.push(resourceData);
     }
     debouncedSaveState();
+    updateVehicleComplianceStatus(); // Recalculate compliance for all vehicles
     closeResourceModal();
     renderResourcesView();
-    checkVehicleCompliance();
+    checkVehicleCompliance(); // Update dashboard notifications
 }
 
 function deleteResource(resourceId) {
@@ -3289,8 +3367,22 @@ function populateTimeSelects() {
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
     const select = document.getElementById(elementId);
-    select.innerHTML = includeAll ? '<option value="all">-- All --</option>' : '<option value="">-- Select --</option>';
+    select.innerHTML = ''; // Clear existing options
+
+    if (includeAll) {
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = '-- All --';
+        select.appendChild(allOption);
+    } else {
+        const selectOption = document.createElement('option');
+        selectOption.value = '';
+        selectOption.textContent = '-- Select --';
+        select.appendChild(selectOption);
+    }
+
     data.forEach(item => {
+        const option = document.createElement('option');
         let displayText = item[nameKey] || item.name;
         if (!displayText && item.make && item.model) {
             displayText = `${item.make} ${item.model}`;
@@ -3298,7 +3390,17 @@ function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
         if ((elementId.includes('customer') || elementId.includes('student')) && item.phone) {
             displayText += ` (${item.phone})`;
         }
-        select.innerHTML += `<option value="${item.id}">${displayText || item.id}</option>`;
+
+        option.value = item.id;
+
+        // For the resource dropdown, check compliance
+        if (elementId === 'booking-resource' && item.resource_type === 'VEHICLE' && item.isCompliant === false) {
+            displayText += ' (Non-Compliant)';
+            option.disabled = true;
+        }
+
+        option.textContent = displayText; // Text content is automatically sanitized by the browser
+        select.appendChild(option);
     });
 }
 
