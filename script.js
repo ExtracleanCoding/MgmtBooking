@@ -4235,42 +4235,40 @@ function exportBillingToExcel() {
 }
 
 function exportReportsToExcel() {
-    const { incomeExpenseReport, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport } = getReportsData();
-    const sanitizeCell = (cell) => { const str = String(cell ?? ''); return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str; };
+    const reportsData = getReportsData();
+    const sanitizeCell = (cell) => {
+        const str = String(cell ?? '');
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g, '""')}"`
+            : str;
+    };
 
-    const reports = [incomeExpenseReport, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport];
-    const maxRows = Math.max(...reports.map(r => r.data.length));
-    let csvRows = [];
+    let csvContent = [];
+    const reportOrder = [
+        'incomeExpenseReport', 'servicePopularityReport', 'lessonPackagePopularityReport',
+        'topCustomersReport', 'staffPerformanceReport', 'resourceUtilisationReport',
+        'mileageReport', 'peakHoursReport'
+    ];
 
-    let titleRow = [];
-    reports.forEach(report => {
-        titleRow.push(report.title);
-        for (let i = 1; i < report.headers.length; i++) titleRow.push("");
-        titleRow.push("");
+    reportOrder.forEach(key => {
+        const report = reportsData[key];
+        if (report && report.data.length > 0) {
+            csvContent.push(report.title);
+            csvContent.push(report.headers.map(sanitizeCell).join(","));
+            report.data.forEach(row => {
+                csvContent.push(row.map(sanitizeCell).join(","));
+            });
+            csvContent.push(""); // Add a blank line for separation
+        }
     });
-    csvRows.push(titleRow.map(sanitizeCell).join(","));
 
-    let headerRow = [];
-    reports.forEach(report => {
-        headerRow.push(...report.headers);
-        headerRow.push("");
-    });
-    csvRows.push(headerRow.map(sanitizeCell).join(","));
-
-    for (let i = 0; i < maxRows; i++) {
-        let dataRow = [];
-        reports.forEach(report => {
-            const rowData = report.data[i] || [];
-            for (let j = 0; j < report.headers.length; j++) {
-                dataRow.push(rowData[j] || "");
-            }
-            dataRow.push("");
-        });
-        csvRows.push(dataRow.map(sanitizeCell).join(","));
+    if (csvContent.length === 0) {
+        showToast("No data available to export.");
+        return;
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\r\n");
-    const encodedUri = encodeURI(csvContent);
+    const fullCsv = "data:text/csv;charset=utf-8," + csvContent.join("\r\n");
+    const encodedUri = encodeURI(fullCsv);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "comprehensive_report.csv");
@@ -4402,7 +4400,6 @@ function getReportsData() {
 
     const incomeByMonth = {};
     state.transactions.forEach(t => {
-        // Only count actual payments (cash) and package sales (pre-paid credit)
         if (t.type === 'package_sale' || t.type === 'payment') {
             const monthYear = t.date.substring(0, 7);
             if (!incomeByMonth[monthYear]) incomeByMonth[monthYear] = 0;
@@ -4446,7 +4443,7 @@ function getReportsData() {
         data: Object.entries(serviceCounts).map(([serviceId, count]) => {
             const service = state.services.find(s => s.id === serviceId);
             return [service ? service.service_name : 'Unknown Service', count];
-        })
+        }).sort((a, b) => b[1] - a[1])
     };
 
     const customerBookingCounts = {};
@@ -4465,7 +4462,7 @@ function getReportsData() {
 
     const staffPerformance = {};
     state.staff.forEach(i => staffPerformance[i.id] = 0);
-    bookings.forEach(b => { if(staffPerformance.hasOwnProperty(b.staffId)) staffPerformance[b.staffId]++; });
+    bookings.forEach(b => { if (staffPerformance.hasOwnProperty(b.staffId)) staffPerformance[b.staffId]++; });
     const staffPerformanceReport = {
         title: "Staff Performance",
         headers: ["Staff", "Bookings Handled"],
@@ -4475,9 +4472,9 @@ function getReportsData() {
     const resourceUtilisation = {};
     state.resources.forEach(v => resourceUtilisation[v.id] = 0);
     bookings.forEach(b => {
-        if(b.resourceIds) {
+        if (b.resourceIds) {
             b.resourceIds.forEach(resId => {
-                 if(resourceUtilisation.hasOwnProperty(resId)) resourceUtilisation[resId]++;
+                if (resourceUtilisation.hasOwnProperty(resId)) resourceUtilisation[resId]++;
             });
         }
     });
@@ -4488,30 +4485,55 @@ function getReportsData() {
     };
 
     const peakHours = {};
-    for(let i=7; i<=21; i++) { peakHours[String(i).padStart(2, '0')] = 0; }
-    bookings.forEach(b => { const startHour = b.startTime.split(':')[0]; if(peakHours.hasOwnProperty(startHour)) peakHours[startHour]++; });
+    for (let i = 7; i <= 21; i++) { peakHours[String(i).padStart(2, '0')] = 0; }
+    bookings.forEach(b => { const startHour = b.startTime.split(':')[0]; if (peakHours.hasOwnProperty(startHour)) peakHours[startHour]++; });
     const peakHoursReport = {
         title: "Peak Booking Hours",
         headers: ["Hour", "Number of Bookings"],
         data: Object.entries(peakHours).map(([hour, count]) => [`${hour}:00`, count])
     };
 
+    const lessonPackagePopularityReportData = [
+        ...Object.entries(serviceCounts).map(([serviceId, count]) => {
+            const service = state.services.find(s => s.id === serviceId);
+            return [service ? service.service_name : 'Unknown Service', count];
+        }),
+        ...Object.entries(packageCounts).map(([packageId, count]) => {
+            const pkg = state.settings.packages.find(p => p.id === packageId);
+            return [pkg ? pkg.name : 'Unknown Package', count];
+        })
+    ].sort((a, b) => b[1] - a[1]);
+
     const lessonPackagePopularityReport = {
         title: "Lesson & Package Popularity",
         headers: ["Item", "Count"],
-        data: [
-            ...Object.entries(serviceCounts).map(([serviceId, count]) => {
-                const service = state.services.find(s => s.id === serviceId);
-                return { name: service ? service.service_name : 'Unknown Service', count };
-            }),
-            ...Object.entries(packageCounts).map(([packageId, count]) => {
-                const pkg = state.settings.packages.find(p => p.id === packageId);
-                return { name: pkg ? pkg.name : 'Unknown Package', count };
-            })
-        ].sort((a, b) => b.count - a.count)
+        data: lessonPackagePopularityReportData
     };
 
-    return { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport };
+    const mileageReport = {
+        title: "Mileage & Efficiency Report",
+        headers: ["Vehicle", "Trips Logged", "Total Distance (km)"],
+        data: []
+    };
+    const mileageBookings = state.bookings.filter(b => b.status === 'Completed' && b.startMileage != null && b.endMileage != null && b.endMileage > b.startMileage);
+    if (mileageBookings.length > 0) {
+        const vehicleMileage = {};
+        mileageBookings.forEach(booking => {
+            const vehicleId = booking.resourceIds && booking.resourceIds[0];
+            if (!vehicleId) return;
+            if (!vehicleMileage[vehicleId]) {
+                const vehicle = state.resources.find(r => r.id === vehicleId);
+                vehicleMileage[vehicleId] = { name: vehicle ? vehicle.resource_name : 'Unknown Vehicle', totalDistance: 0, tripCount: 0 };
+            }
+            const distance = booking.endMileage - booking.startMileage;
+            vehicleMileage[vehicleId].totalDistance += distance;
+            vehicleMileage[vehicleId].tripCount++;
+        });
+        mileageReport.data = Object.values(vehicleMileage).map(v => [v.name, v.tripCount, v.totalDistance.toLocaleString()]);
+    }
+
+
+    return { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport, mileageReport };
 }
 
 function generateOverdueReport() {
