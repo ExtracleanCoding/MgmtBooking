@@ -1225,6 +1225,7 @@ function renderCalendarHeader() {
                     <button onclick="showView('week')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('week')}">Week</button>
                     <button onclick="showView('month')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('month')}">Month</button>
                 </div>
+                ${currentView === 'day' ? `<button onclick="generateDailyRoute()" class="${btnGreen}">View Route</button>` : ''}
                 <button onclick="openBlockDatesModal()" class="${btnDanger}">Block Dates</button>
             </div>
         </div>`;
@@ -3986,6 +3987,38 @@ function exportToGoogleCalendar(bookingId) {
     const location = booking.pickup || '';
     const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${encodeURIComponent(dates)}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
     window.open(url, '_blank');
+}
+
+function generateDailyRoute() {
+    const dateString = toLocalDateString(currentDate);
+    const dayBookings = state.bookings.filter(b => b.date === dateString && b.status !== 'Cancelled' && b.pickup);
+
+    if (dayBookings.length < 2) {
+        showDialog({
+            title: 'Not Enough Locations',
+            message: 'You need at least two bookings with pickup locations on this day to generate a route.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // Get unique pickup locations
+    const locations = [...new Set(dayBookings.map(b => b.pickup.trim()))];
+
+    if (locations.length < 2) {
+        showDialog({
+            title: 'Not Enough Unique Locations',
+            message: 'You need at least two unique pickup locations to generate a route.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    const baseUrl = 'https://www.google.com/maps/dir/';
+    const encodedLocations = locations.map(loc => encodeURIComponent(loc)).join('/');
+    const finalUrl = baseUrl + encodedLocations;
+
+    window.open(finalUrl, '_blank');
 }
 
 function printInvoice() {
