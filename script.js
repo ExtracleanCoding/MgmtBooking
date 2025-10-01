@@ -486,6 +486,7 @@ function loadState() {
             mockTestRate: 60.00,
             mockTestDuration: 1.5,
             packages: [],
+            suggestionCount: 3,
             instructorName: 'Ray Ryan',
             instructorAddress: '123 Driving School Ln, Town, T12 3AB',
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
@@ -604,6 +605,7 @@ function handleSaveSettings(event) {
     state.settings.paymentDetails = document.getElementById('payment-details').value;
     state.settings.smsTemplate = document.getElementById('sms-template').value;
     state.settings.firstDayOfWeek = document.getElementById('first-day-of-week').value;
+    state.settings.suggestionCount = parseInt(document.getElementById('suggestion-count').value, 10) || 3;
 
     // New AI settings save logic
     const provider = document.getElementById('ai-provider').value;
@@ -1064,6 +1066,10 @@ function renderSettingsView() {
                                     <option value="monday" ${state.settings.firstDayOfWeek === 'monday' ? 'selected' : ''}>Monday</option>
                                     <option value="sunday" ${state.settings.firstDayOfWeek === 'sunday' ? 'selected' : ''}>Sunday</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label for="suggestion-count" class="block mb-1 text-sm font-medium text-gray-700">Conflict Suggestion Count</label>
+                                <input type="number" id="suggestion-count" value="${state.settings.suggestionCount || 3}" min="1" max="10" class="w-full">
                             </div>
                         </div>
                     </div>
@@ -1923,6 +1929,61 @@ function renderReportsView() {
  * SECTION 8: CRUD OPERATIONS & ENTITY LOGIC
  ******************************************************************************/
 
+function findAvailableSlots(bookingDetails) {
+    const { date, durationMinutes, staffId, resourceIds, id, customerId } = bookingDetails;
+    const suggestions = [];
+    const suggestionCount = state.settings.suggestionCount || 3;
+    let searchDate = parseYYYYMMDD(date);
+    let searchTime = timeToMinutes(bookingDetails.startTime);
+
+    // Limit search to a few days to prevent infinite loops
+    const maxSearchDays = 14;
+    let daysSearched = 0;
+
+    while (suggestions.length < suggestionCount && daysSearched < maxSearchDays) {
+        // Increment search time by the slot interval
+        searchTime += TIMESLOT_INTERVAL_MINUTES;
+
+        // If we've gone past the end of the working day, reset to the next day
+        if (searchTime >= (CALENDAR_END_HOUR * 60)) {
+            searchDate.setDate(searchDate.getDate() + 1);
+            searchTime = CALENDAR_START_HOUR * 60;
+            daysSearched++;
+            continue;
+        }
+
+        const newStartTime = minutesToTime(searchTime);
+        const newEndTime = minutesToTime(searchTime + durationMinutes);
+
+        // Check if the new slot goes beyond the calendar end time
+        if (timeToMinutes(newEndTime) > (CALENDAR_END_HOUR * 60)) {
+            continue;
+        }
+
+        const potentialBooking = {
+            id: id,
+            date: toLocalDateString(searchDate),
+            startTime: newStartTime,
+            endTime: newEndTime,
+            staffId,
+            resourceIds,
+            customerId
+        };
+
+        const conflict = findBookingConflict(potentialBooking);
+
+        if (!conflict) {
+            suggestions.push({
+                date: toLocalDateString(searchDate),
+                startTime: newStartTime,
+                endTime: newEndTime
+            });
+        }
+    }
+
+    return suggestions;
+}
+
 function findBookingConflict(bookingDetails) {
     const { id, date, startTime, endTime, customerId, staffId, resourceIds } = bookingDetails;
 
@@ -1998,17 +2059,29 @@ function saveBooking(event) {
     const serviceId = document.getElementById('booking-service').value;
     const newStatus = document.getElementById('booking-status').value;
     const newPaymentStatus = document.getElementById('booking-payment-status').value;
+    const service = state.services.find(s => s.id === serviceId);
+    const durationMinutes = service ? service.duration_minutes : 60;
 
-    const conflict = findBookingConflict({
-        id: bookingId, date, startTime, endTime, customerId, staffId,
-        resourceIds: resourceId ? [resourceId] : []
-    });
+    const bookingDetails = {
+        id: bookingId,
+        date,
+        startTime,
+        endTime,
+        customerId,
+        staffId,
+        resourceIds: resourceId ? [resourceId] : [],
+        durationMinutes
+    };
+
+    const conflict = findBookingConflict(bookingDetails);
 
     if (conflict) {
+        const suggestions = findAvailableSlots(bookingDetails);
         showDialog({
             title: 'Booking Conflict',
             message: conflict,
-            buttons: [{ text: 'OK', class: btnPrimary }]
+            suggestions: suggestions,
+            buttons: [{ text: 'OK', class: btnSecondary }]
         });
         return;
     }
@@ -2456,10 +2529,35 @@ function deleteProgressNote(customerId, noteId) {
  * SECTION 9: MODAL MANAGEMENT
  ******************************************************************************/
 
-function showDialog({ title, message, buttons }) {
+function showDialog({ title, message, buttons, suggestions = [] }) {
     const modal = document.getElementById('dialog-modal');
     document.getElementById('dialog-title').textContent = title;
-    document.getElementById('dialog-message').textContent = message;
+    document.getElementById('dialog-message').innerHTML = message; // Use innerHTML for potential formatting
+
+    const suggestionsContainer = document.getElementById('dialog-suggestions');
+    suggestionsContainer.innerHTML = ''; // Clear previous suggestions
+
+    if (suggestions && suggestions.length > 0) {
+        const suggestionsHeader = document.createElement('p');
+        suggestionsHeader.className = 'text-sm font-semibold text-gray-800 mb-2';
+        suggestionsHeader.textContent = 'Available slots:';
+        suggestionsContainer.appendChild(suggestionsHeader);
+
+        suggestions.forEach(suggestion => {
+            const button = document.createElement('button');
+            button.className = `${btnPrimary} w-full text-left mb-2`;
+            const displayDate = parseYYYYMMDD(suggestion.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+            button.textContent = `${displayDate} at ${suggestion.startTime}`;
+            button.onclick = () => {
+                document.getElementById('booking-date').value = suggestion.date;
+                document.getElementById('booking-start-time').value = suggestion.startTime;
+                handleStartTimeChange(); // This will update the end time
+                closeDialog();
+            };
+            suggestionsContainer.appendChild(button);
+        });
+    }
+
     const buttonsContainer = document.getElementById('dialog-buttons');
     buttonsContainer.innerHTML = '';
     buttons.forEach(btnInfo => {
@@ -2472,6 +2570,7 @@ function showDialog({ title, message, buttons }) {
         };
         buttonsContainer.appendChild(button);
     });
+
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
 }
