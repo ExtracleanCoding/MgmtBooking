@@ -412,11 +412,9 @@ function changeDate(unit, direction) {
 function loadState() {
     try {
         const defaultSettings = {
-            rates: { standard: 30.00, intermediate: 35.00, advanced: 40.00 },
             mockTestRate: 60.00,
             mockTestDuration: 1.5,
             packages: [],
-            suggestionCount: 3,
             instructorName: 'Ray Ryan',
             instructorAddress: '123 Driving School Ln, Town, T12 3AB',
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
@@ -506,15 +504,10 @@ function saveState() {
 
 function handleSaveSettings(event) {
     event.preventDefault();
-    const standardRate = parseFloat(document.getElementById('rate-standard').value);
-    const intermediateRate = parseFloat(document.getElementById('rate-intermediate').value);
-    const advancedRate = parseFloat(document.getElementById('rate-advanced').value);
     const mockTestRate = parseFloat(document.getElementById('mock-test-rate').value);
     const mockTestDuration = parseFloat(document.getElementById('mock-test-duration').value);
-    const suggestionCountVal = parseInt(document.getElementById('suggestion-count').value, 10);
 
-    if (isNaN(standardRate) || standardRate < 0 || isNaN(intermediateRate) || intermediateRate < 0 || isNaN(advancedRate) || advancedRate < 0 ||
-        isNaN(mockTestRate) || mockTestRate < 0 || isNaN(mockTestDuration) || mockTestDuration <= 0) {
+    if (isNaN(mockTestRate) || mockTestRate < 0 || isNaN(mockTestDuration) || mockTestDuration <= 0) {
         showDialog({
             title: 'Invalid Input',
             message: 'Please enter valid, non-negative numbers for all rates and a positive duration for mock tests.',
@@ -523,12 +516,8 @@ function handleSaveSettings(event) {
         return;
     }
 
-    state.settings.rates.standard = standardRate;
-    state.settings.rates.intermediate = intermediateRate;
-    state.settings.rates.advanced = advancedRate;
     state.settings.mockTestRate = mockTestRate;
     state.settings.mockTestDuration = mockTestDuration;
-    state.settings.suggestionCount = isNaN(suggestionCountVal) || suggestionCountVal < 1 ? 3 : suggestionCountVal;
     state.settings.instructorName = document.getElementById('instructor-name').value;
     state.settings.instructorAddress = document.getElementById('instructor-address').value;
     state.settings.paymentDetails = document.getElementById('payment-details').value;
@@ -953,15 +942,7 @@ function renderSettingsView() {
             <div>
                 <h2 class="text-xl font-bold mb-4 text-gray-900">Settings</h2>
                 <form onsubmit="handleSaveSettings(event)" class="space-y-6">
-                     <div>
-                        <h3 class="text-lg font-medium mb-2">Lesson Rates (€)</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div><label for="rate-standard" class="block mb-1 text-sm font-medium text-gray-700">Standard</label><input type="number" id="rate-standard" value="${state.settings.rates.standard.toFixed(2)}" step="0.01" required class="w-full"></div>
-                            <div><label for="rate-intermediate" class="block mb-1 text-sm font-medium text-gray-700">Intermediate</label><input type="number" id="rate-intermediate" value="${state.settings.rates.intermediate.toFixed(2)}" step="0.01" required class="w-full"></div>
-                            <div><label for="rate-advanced" class="block mb-1 text-sm font-medium text-gray-700">Advanced</label><input type="number" id="rate-advanced" value="${state.settings.rates.advanced.toFixed(2)}" step="0.01" required class="w-full"></div>
-                        </div>
-                    </div>
-                    <div class="border-t border-gray-200 pt-6">
+                     <div class="border-t border-gray-200 pt-6">
                         <h3 class="text-lg font-medium mb-2">Mock Test Settings</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div><label for="mock-test-rate" class="block mb-1 text-sm font-medium text-gray-700">Mock Test Rate (€)</label><input type="number" id="mock-test-rate" value="${(state.settings.mockTestRate || 60).toFixed(2)}" step="0.01" required class="w-full"></div>
@@ -996,11 +977,6 @@ function renderSettingsView() {
                     <div class="border-t border-gray-200 pt-6">
                         <h3 class="text-lg font-medium mb-2">Booking Settings</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label for="suggestion-count" class="block mb-1 text-sm font-medium text-gray-700">Conflict Suggestion Count</label>
-                                <input type="number" id="suggestion-count" value="${state.settings.suggestionCount || 3}" min="1" max="10" class="w-full">
-                                <p class="text-xs text-gray-500 mt-1">Number of alternative time slots to suggest when a conflict occurs (1-10).</p>
-                            </div>
                             <div>
                                 <label for="first-day-of-week" class="block mb-1 text-sm font-medium text-gray-700">First Day of the Week</label>
                                 <select id="first-day-of-week" class="w-full">
