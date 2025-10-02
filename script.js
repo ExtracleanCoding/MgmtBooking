@@ -9,8 +9,9 @@
  * @created 2025-09-11
  */
 
-function sanitizeHTML(str) {
-    if (!str) return '';
+function sanitizeHTML(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
     return str.replace(/[&<>"']/g, tag => ({
         '&': '&amp;',
         '<': '&lt;',
@@ -18,6 +19,16 @@ function sanitizeHTML(str) {
         '"': '&quot;',
         "'": '&#39;'
     }[tag] || tag));
+}
+
+function normalizeCollection(collection) {
+    if (Array.isArray(collection)) {
+        return collection;
+    }
+    if (collection && typeof collection === 'object') {
+        return Object.values(collection);
+    }
+    return [];
 }
 
 function parseYYYYMMDD(dateString) {
@@ -707,10 +718,11 @@ function renderGenericListView(viewName, title, columns, data, addFn, editFn, de
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
     container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
     const listContainer = document.getElementById(`${viewName}-list-table`);
-    if (data.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
+    const dataArray = normalizeCollection(data);
+    if (dataArray.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
 
     const tableHeaders = columns.map(c => `<th class="${c.class || ''}">${c.header}</th>`).join('');
-    const tableRows = data.map(item => {
+    const tableRows = dataArray.map(item => {
         let actionsHtml;
 
         if (viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID) {
