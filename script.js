@@ -1120,7 +1120,13 @@ function renderCalendarHeader() {
     if (currentView === 'day') title = currentDate.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     else if (currentView === 'week') {
         const weekStart = new Date(currentDate);
-        const dayOfWeek = weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1;
+        const firstDaySetting = state.settings.firstDayOfWeek || 'monday';
+        let dayOfWeek;
+        if (firstDaySetting === 'sunday') {
+            dayOfWeek = weekStart.getDay(); // Sunday is 0
+        } else {
+            dayOfWeek = weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1; // Monday is 0
+        }
         weekStart.setDate(weekStart.getDate() - dayOfWeek);
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
@@ -3257,7 +3263,16 @@ function populateTimeSelects() {
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
     const select = document.getElementById(elementId);
-    select.innerHTML = includeAll ? '<option value="all">-- All --</option>' : '<option value="">-- Select --</option>';
+    select.innerHTML = ''; // Clear existing options safely
+
+    // Add the placeholder option
+    if (includeAll) {
+        select.add(new Option('-- All --', 'all'));
+    } else {
+        select.add(new Option('-- Select --', ''));
+    }
+
+    // Populate with data
     data.forEach(item => {
         let displayText = item[nameKey] || item.name;
         if (!displayText && item.make && item.model) {
@@ -3266,7 +3281,9 @@ function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
         if ((elementId.includes('customer') || elementId.includes('student')) && item.phone) {
             displayText += ` (${item.phone})`;
         }
-        select.innerHTML += `<option value="${item.id}">${displayText || item.id}</option>`;
+        // Create a new Option element. The text is automatically sanitized.
+        const option = new Option(displayText || item.id, item.id);
+        select.add(option);
     });
 }
 
@@ -4244,7 +4261,7 @@ async function fetchAiModels() {
             break;
         case 'openrouter':
             apiUrl = 'https://openrouter.ai/api/v1/models';
-            headers = {};
+            headers = { 'Authorization': `Bearer ${apiKey}` };
             break;
         default:
             showDialog({ title: 'Error', message: `Model fetching is not supported for provider: ${provider}`, buttons: [{ text: 'OK', class: btnPrimary }] });
