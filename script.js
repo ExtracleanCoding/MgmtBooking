@@ -35,84 +35,14 @@ function generateUUID() {
     });
 }
 
-
-function updateVehicleComplianceStatus() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    state.resources.forEach(resource => {
-        if (resource.resource_type === 'VEHICLE') {
-            let isCompliant = true;
-            if (resource.maintenance_schedule) {
-                const motDate = parseYYYYMMDD(resource.maintenance_schedule.mot);
-                const taxDate = parseYYYYMMDD(resource.maintenance_schedule.tax);
-
-                if (motDate && motDate < today) {
-                    isCompliant = false;
-                }
-                if (taxDate && taxDate < today) {
-                    isCompliant = false;
-                }
-            }
-            resource.isCompliant = isCompliant;
-        }
-    });
-}
-
 function checkVehicleCompliance() {
-    const notificationsContainer = document.getElementById('dashboard-notifications');
-    notificationsContainer.querySelectorAll('.vehicle-compliance-alert').forEach(el => el.remove());
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    state.resources.filter(r => r.resource_type === 'VEHICLE').forEach(vehicle => {
-        const checkDate = (dateString, type) => {
-            if (!dateString) return;
-            const dueDate = parseYYYYMMDD(dateString);
-            const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-            let message = '', alertClass = '';
-
-            if (diffDays < 0) {
-                message = `${type} for ${sanitizeHTML(vehicle.resource_name)} (${sanitizeHTML(vehicle.reg)}) was due ${Math.abs(diffDays)} days ago.`;
-                alertClass = 'bg-red-100 border-red-500 text-red-700';
-            } else if (diffDays <= 30) {
-                message = `${type} for ${sanitizeHTML(vehicle.resource_name)} (${sanitizeHTML(vehicle.reg)}) is due in ${diffDays} days.`;
-                alertClass = 'bg-amber-100 border-amber-500 text-amber-700';
-            }
-
-            if (message) {
-                addDashboardNotification({
-                    id: `compliance_${vehicle.id}_${type}`,
-                    message: message,
-                    alertClass: alertClass,
-                    onClick: `showView('resources')`
-                });
-            }
-        };
-        if(vehicle.maintenance_schedule){
-            checkDate(vehicle.maintenance_schedule.mot, 'MOT');
-            checkDate(vehicle.maintenance_schedule.tax, 'Tax');
-            checkDate(vehicle.maintenance_schedule.service, 'Service');
-        }
-    });
+    // TODO: Implement actual vehicle compliance check
+    console.log("Checking vehicle compliance...");
 }
 
 function checkOverduePayments() {
-    const notificationsContainer = document.getElementById('dashboard-notifications');
-    notificationsContainer.querySelectorAll('.overdue-payment-alert').forEach(el => el.remove());
-
-    const overdueCustomers = getCustomerSummaries().filter(s => s.outstanding > 0);
-
-    if (overdueCustomers.length > 0) {
-        const message = `There are <strong>${overdueCustomers.length} customers</strong> with outstanding payments.`;
-        addDashboardNotification({
-            id: 'overdue_payment_alert_summary',
-            message: message,
-            alertClass: 'bg-red-100 border-red-500 text-red-700',
-            onClick: `showView('billing')`
-        });
-    }
+    // TODO: Implement actual overdue payments check
+    console.log("Checking for overdue payments...");
 }
 
 /******************************************************************************
@@ -234,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateClock, 1000);
     populateTimeSelects();
     renderApp();
-    updateVehicleComplianceStatus();
     checkVehicleCompliance();
     checkOverduePayments();
 
@@ -486,8 +415,6 @@ function loadState() {
             mockTestRate: 60.00,
             mockTestDuration: 1.5,
             packages: [],
-            suggestionCount: 3,
-            autoNotifyWaitingList: true,
             instructorName: 'Ray Ryan',
             instructorAddress: '123 Driving School Ln, Town, T12 3AB',
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
@@ -529,15 +456,6 @@ function loadState() {
 
         const savedSettings = safeJSONParse(DB_KEYS.SETTINGS, {});
         state.settings = deepMerge(defaultSettings, savedSettings);
-
-        // Clean up legacy, unused settings properties for data hygiene.
-        // This is a one-time operation per user.
-        if (state.settings.hasOwnProperty('rates')) {
-            delete state.settings.rates;
-        }
-        if (state.settings.hasOwnProperty('suggestionCount')) {
-            delete state.settings.suggestionCount;
-        }
 
     } catch (error) {
         console.error("Failed to load state from localStorage:", error);
@@ -606,8 +524,6 @@ function handleSaveSettings(event) {
     state.settings.paymentDetails = document.getElementById('payment-details').value;
     state.settings.smsTemplate = document.getElementById('sms-template').value;
     state.settings.firstDayOfWeek = document.getElementById('first-day-of-week').value;
-    state.settings.suggestionCount = parseInt(document.getElementById('suggestion-count').value, 10) || 3;
-    state.settings.autoNotifyWaitingList = document.getElementById('auto-notify-waiting-list').checked;
 
     // New AI settings save logic
     const provider = document.getElementById('ai-provider').value;
@@ -636,7 +552,7 @@ function handleSaveSettings(event) {
         });
     }
 
-    debouncedSaveState();
+    saveState();
     showDialog({ title: 'Success', message: 'Settings saved.', buttons: [{ text: 'OK', class: btnPrimary }] });
 }
 
@@ -1069,17 +985,6 @@ function renderSettingsView() {
                                     <option value="sunday" ${state.settings.firstDayOfWeek === 'sunday' ? 'selected' : ''}>Sunday</option>
                                 </select>
                             </div>
-                            <div>
-                                <label for="suggestion-count" class="block mb-1 text-sm font-medium text-gray-700">Conflict Suggestion Count</label>
-                                <input type="number" id="suggestion-count" value="${state.settings.suggestionCount || 3}" min="1" max="10" class="w-full">
-                            </div>
-                        </div>
-                        <div class="mt-4 flex items-center justify-between">
-                            <span class="flex-grow flex flex-col">
-                                <span class="text-sm font-medium text-gray-900">Auto-Notify Waiting List</span>
-                                <span class="text-sm text-gray-500">Automatically send an SMS when a slot opens up.</span>
-                            </span>
-                            <input type="checkbox" id="auto-notify-waiting-list" ${state.settings.autoNotifyWaitingList ? 'checked' : ''} class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
                         </div>
                     </div>
                     <div class="border-t border-gray-200 pt-6">
@@ -1225,7 +1130,6 @@ function renderCalendarHeader() {
                     <button onclick="showView('week')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('week')}">Week</button>
                     <button onclick="showView('month')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('month')}">Month</button>
                 </div>
-                ${currentView === 'day' ? `<button onclick="generateDailyRoute()" class="${btnGreen}">View Route</button>` : ''}
                 <button onclick="openBlockDatesModal()" class="${btnDanger}">Block Dates</button>
             </div>
         </div>`;
@@ -1927,159 +1831,17 @@ function renderReportsView() {
                     <canvas id="peakBookingHoursChart"></canvas>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg lg:col-span-2">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Mileage & Efficiency Report</h3>
-                    <div id="mileage-report-container"></div>
-                </div>
-
             </div>
         </div>
     `;
     generateOverdueReport();
     generateCharts();
-    generateMileageReport();
-}
-
-function generateMileageReport() {
-    const container = document.getElementById('mileage-report-container');
-
-    const mileageBookings = state.bookings.filter(b =>
-        b.status === 'Completed' &&
-        b.startMileage !== null &&
-        b.endMileage !== null &&
-        b.endMileage > b.startMileage
-    );
-
-    if (mileageBookings.length === 0) {
-        container.innerHTML = '<p class="text-center py-4 text-gray-500">No mileage data recorded yet. Complete a booking with mileage to see the report.</p>';
-        return;
-    }
-
-    const vehicleMileage = {};
-
-    mileageBookings.forEach(booking => {
-        const vehicleId = booking.resourceIds && booking.resourceIds[0];
-        if (!vehicleId) return;
-
-        if (!vehicleMileage[vehicleId]) {
-            const vehicle = state.resources.find(r => r.id === vehicleId);
-            vehicleMileage[vehicleId] = {
-                name: vehicle ? vehicle.resource_name : 'Unknown Vehicle',
-                totalDistance: 0,
-                tripCount: 0
-            };
-        }
-
-        const distance = booking.endMileage - booking.startMileage;
-        vehicleMileage[vehicleId].totalDistance += distance;
-        vehicleMileage[vehicleId].tripCount++;
-    });
-
-    const fuelExpenses = state.expenses.filter(e => e.category === 'Fuel');
-    const totalFuelCost = fuelExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalDistanceAllVehicles = Object.values(vehicleMileage).reduce((sum, v) => sum + v.totalDistance, 0);
-
-    const tableRows = Object.values(vehicleMileage).map(vehicle => `
-        <tr>
-            <td class="font-medium">${sanitizeHTML(vehicle.name)}</td>
-            <td class="text-center">${vehicle.tripCount}</td>
-            <td class="text-right font-bold">${vehicle.totalDistance.toLocaleString()} km</td>
-        </tr>
-    `).join('');
-
-    container.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
-            <div class="p-4 bg-white rounded-lg shadow">
-                <h4 class="text-sm font-semibold text-gray-600">Total Distance (All Vehicles)</h4>
-                <p class="text-2xl font-bold text-indigo-600">${totalDistanceAllVehicles.toLocaleString()} km</p>
-            </div>
-            <div class="p-4 bg-white rounded-lg shadow">
-                <h4 class="text-sm font-semibold text-gray-600">Total Fuel Cost</h4>
-                <p class="text-2xl font-bold text-red-600">€${totalFuelCost.toFixed(2)}</p>
-            </div>
-        </div>
-        <div class="overflow-x-auto mt-4">
-            <table class="min-w-full bg-white rounded-md">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="text-left">Vehicle</th>
-                        <th class="text-center">Trips Logged</th>
-                        <th class="text-right">Total Distance</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">${tableRows}</tbody>
-            </table>
-            <p class="text-xs text-gray-500 mt-2 text-center">Note: Efficiency is calculated based on all fuel expenses and may not be vehicle-specific.</p>
-        </div>
-    `;
 }
 
 
 /******************************************************************************
  * SECTION 8: CRUD OPERATIONS & ENTITY LOGIC
  ******************************************************************************/
-
-function findAvailableSlots(bookingDetails) {
-    const { date, durationMinutes, staffId, resourceIds, id, customerId } = bookingDetails;
-    const suggestions = [];
-    const suggestionCount = state.settings.suggestionCount || 3;
-    let searchDate = parseYYYYMMDD(date);
-    let searchTime = timeToMinutes(bookingDetails.startTime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Limit search to a reasonable number of days to prevent infinite loops
-    const maxSearchDays = 14;
-    let daysSearched = 0;
-
-    while (suggestions.length < suggestionCount && daysSearched < maxSearchDays) {
-        // Increment search time by the slot interval for the next potential start time
-        searchTime += TIMESLOT_INTERVAL_MINUTES;
-
-        // If the search time exceeds the calendar's end hour, reset to the next day's start
-        if (searchTime >= (CALENDAR_END_HOUR * 60)) {
-            searchDate.setDate(searchDate.getDate() + 1);
-            searchTime = CALENDAR_START_HOUR * 60;
-            daysSearched++;
-            continue; // Move to the next iteration to check the new day
-        }
-
-        // Do not suggest slots in the past
-        if (searchDate < today) {
-            continue;
-        }
-
-        const newStartTime = minutesToTime(searchTime);
-        const newEndTime = minutesToTime(searchTime + durationMinutes);
-
-        // Ensure the calculated end time doesn't exceed the calendar's operating hours
-        if (timeToMinutes(newEndTime) > (CALENDAR_END_HOUR * 60)) {
-            continue;
-        }
-
-        // Construct a temporary booking object to check for conflicts
-        const potentialBooking = {
-            id: id, // Use the original booking ID to avoid self-conflict
-            date: toLocalDateString(searchDate),
-            startTime: newStartTime,
-            endTime: newEndTime,
-            staffId,
-            resourceIds,
-            customerId
-        };
-
-        // If no conflict is found for the potential slot, add it to suggestions
-        if (!findBookingConflict(potentialBooking)) {
-            suggestions.push({
-                date: toLocalDateString(searchDate),
-                startTime: newStartTime,
-                endTime: newEndTime
-            });
-        }
-    }
-
-    return suggestions;
-}
 
 function findBookingConflict(bookingDetails) {
     const { id, date, startTime, endTime, customerId, staffId, resourceIds } = bookingDetails;
@@ -2121,12 +1883,6 @@ function findBookingConflict(bookingDetails) {
             const resourceName = state.resources.find(res => res.id === resourceIds[0])?.resource_name || 'The resource';
             return `${resourceName} is already booked from ${resourceConflict.startTime} to ${resourceConflict.endTime}.`;
         }
-
-        const resourceId = resourceIds[0];
-        const resource = state.resources.find(r => r.id === resourceId);
-        if (resource && resource.resource_type === 'VEHICLE' && resource.isCompliant === false) {
-            return `The selected vehicle (${resource.resource_name}) has an expired MOT or Tax and cannot be booked.`;
-        }
     }
 
     // Check for staff leave
@@ -2156,29 +1912,17 @@ function saveBooking(event) {
     const serviceId = document.getElementById('booking-service').value;
     const newStatus = document.getElementById('booking-status').value;
     const newPaymentStatus = document.getElementById('booking-payment-status').value;
-    const service = state.services.find(s => s.id === serviceId);
-    const durationMinutes = service ? service.duration_minutes : 60;
 
-    const bookingDetails = {
-        id: bookingId,
-        date,
-        startTime,
-        endTime,
-        customerId,
-        staffId,
-        resourceIds: resourceId ? [resourceId] : [],
-        durationMinutes
-    };
-
-    const conflict = findBookingConflict(bookingDetails);
+    const conflict = findBookingConflict({
+        id: bookingId, date, startTime, endTime, customerId, staffId,
+        resourceIds: resourceId ? [resourceId] : []
+    });
 
     if (conflict) {
-        const suggestions = findAvailableSlots(bookingDetails);
         showDialog({
             title: 'Booking Conflict',
             message: conflict,
-            suggestions: suggestions,
-            buttons: [{ text: 'OK', class: btnSecondary }]
+            buttons: [{ text: 'OK', class: btnPrimary }]
         });
         return;
     }
@@ -2236,9 +1980,7 @@ function saveBooking(event) {
         status: newStatus,
         paymentStatus: newPaymentStatus,
         pickup: document.getElementById('booking-pickup').value,
-        transactionId: transactionId,
-        startMileage: null,
-        endMileage: null
+        transactionId: transactionId
     };
 
     if (newStatus === 'Completed' && oldStatus !== 'Completed' && bookingData.paymentStatus === 'Unpaid') {
@@ -2250,34 +1992,6 @@ function saveBooking(event) {
 
 
 function finalizeSaveBooking(bookingData, oldStatus = null) {
-    // If the booking is being marked as completed, check if it's from the completion modal
-    const completionModal = document.getElementById('completion-modal');
-    const isCompletionModalOpen = completionModal && !completionModal.classList.contains('hidden');
-
-    if (bookingData.status === 'Completed' && isCompletionModalOpen) {
-        const startMileageInput = document.getElementById('completion-start-mileage');
-        const endMileageInput = document.getElementById('completion-end-mileage');
-
-        if (startMileageInput && endMileageInput) {
-            const startMileage = startMileageInput.value;
-            const endMileage = endMileageInput.value;
-
-            if (startMileage && endMileage) {
-                bookingData.startMileage = parseInt(startMileage, 10);
-                bookingData.endMileage = parseInt(endMileage, 10);
-
-                // Update the vehicle's last known mileage
-                const vehicleId = bookingData.resourceIds && bookingData.resourceIds[0];
-                if (vehicleId) {
-                    const vehicleIndex = state.resources.findIndex(r => r.id === vehicleId);
-                    if (vehicleIndex !== -1) {
-                        state.resources[vehicleIndex].lastKnownMileage = bookingData.endMileage;
-                    }
-                }
-            }
-        }
-    }
-
     if (bookingData.id && state.bookings.some(b => b.id === bookingData.id)) {
         const index = state.bookings.findIndex(b => b.id === bookingData.id);
         state.bookings[index] = bookingData;
@@ -2453,26 +2167,18 @@ function saveResource(event) {
             mot: document.getElementById('resource-mot').value,
             tax: document.getElementById('resource-tax').value,
             service: document.getElementById('resource-service').value,
-        },
-        lastKnownMileage: parseInt(document.getElementById('resource-mileage').value, 10) || 0
+        }
     };
     if (resourceId) {
         const index = state.resources.findIndex(r => r.id === resourceId);
-        if (index !== -1) {
-            // Preserve existing mileage if not provided on edit
-            if (!resourceData.lastKnownMileage) {
-                resourceData.lastKnownMileage = state.resources[index].lastKnownMileage || 0;
-            }
-            state.resources[index] = { ...state.resources[index], ...resourceData };
-        }
+        if (index !== -1) state.resources[index] = { ...state.resources[index], ...resourceData };
     } else {
         state.resources.push(resourceData);
     }
     debouncedSaveState();
-    updateVehicleComplianceStatus(); // Recalculate compliance for all vehicles
     closeResourceModal();
     renderResourcesView();
-    checkVehicleCompliance(); // Update dashboard notifications
+    checkVehicleCompliance();
 }
 
 function deleteResource(resourceId) {
@@ -2663,35 +2369,10 @@ function deleteProgressNote(customerId, noteId) {
  * SECTION 9: MODAL MANAGEMENT
  ******************************************************************************/
 
-function showDialog({ title, message, buttons, suggestions = [] }) {
+function showDialog({ title, message, buttons }) {
     const modal = document.getElementById('dialog-modal');
     document.getElementById('dialog-title').textContent = title;
-    document.getElementById('dialog-message').innerHTML = message; // Use innerHTML for potential formatting
-
-    const suggestionsContainer = document.getElementById('dialog-suggestions');
-    suggestionsContainer.innerHTML = ''; // Clear previous suggestions
-
-    if (suggestions && suggestions.length > 0) {
-        const suggestionsHeader = document.createElement('p');
-        suggestionsHeader.className = 'text-sm font-semibold text-gray-800 mb-2';
-        suggestionsHeader.textContent = 'Available slots:';
-        suggestionsContainer.appendChild(suggestionsHeader);
-
-        suggestions.forEach(suggestion => {
-            const button = document.createElement('button');
-            button.className = `${btnPrimary} w-full text-left mb-2`;
-            const displayDate = parseYYYYMMDD(suggestion.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-            button.textContent = `${displayDate} at ${suggestion.startTime}`;
-            button.onclick = () => {
-                document.getElementById('booking-date').value = suggestion.date;
-                document.getElementById('booking-start-time').value = suggestion.startTime;
-                handleStartTimeChange(); // This will update the end time
-                closeDialog();
-            };
-            suggestionsContainer.appendChild(button);
-        });
-    }
-
+    document.getElementById('dialog-message').textContent = message;
     const buttonsContainer = document.getElementById('dialog-buttons');
     buttonsContainer.innerHTML = '';
     buttons.forEach(btnInfo => {
@@ -2704,7 +2385,6 @@ function showDialog({ title, message, buttons, suggestions = [] }) {
         };
         buttonsContainer.appendChild(button);
     });
-
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
 }
@@ -3179,11 +2859,6 @@ function openSellPackageModal(customerId) {
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
 }
 
-function closeSellPackageModal() {
-    const modal = document.getElementById('sell-package-modal');
-    modal.querySelector('.modal').classList.add('scale-95', 'opacity-0');
-    setTimeout(() => modal.classList.add('hidden'), 300);
-}
 
 function updatePackageSummary() {
     const selectEl = document.getElementById('sell-package-select');
@@ -3278,7 +2953,6 @@ function openResourceModal(resourceId = null) {
             document.getElementById('resource-mot').value = schedule.mot || '';
             document.getElementById('resource-tax').value = schedule.tax || '';
             document.getElementById('resource-service').value = schedule.service || '';
-            document.getElementById('resource-mileage').value = resource.lastKnownMileage || '';
         }
     } else {
         document.getElementById('resource-modal-title').textContent = 'New Resource';
@@ -3415,36 +3089,20 @@ function openCompletionModal(bookingData) {
 
     document.getElementById('completion-message').textContent = `Mark lesson for ${customer.name} as complete. How was it paid?`;
 
-    // --- Mileage Fields Logic ---
-    const mileageFields = document.getElementById('mileage-fields');
-    const vehicleId = bookingData.resourceIds && bookingData.resourceIds[0];
-    const vehicle = vehicleId ? state.resources.find(r => r.id === vehicleId && r.resource_type === 'VEHICLE') : null;
-
-    if (vehicle) {
-        mileageFields.style.display = 'grid';
-        const startMileageInput = document.getElementById('completion-start-mileage');
-        startMileageInput.value = vehicle.lastKnownMileage || '';
-        document.getElementById('completion-end-mileage').value = '';
-    } else {
-        mileageFields.style.display = 'none';
-    }
-
     const creditInfoEl = document.getElementById('completion-credit-info');
     const currentCredits = customer.driving_school_details?.lesson_credits || 0;
-    creditInfoEl.innerHTML = `Customer has <strong>${currentCredits.toFixed(1)}</strong> hours of credit. This lesson is <strong>${durationHours.toFixed(1)}</strong> hours.`;
+    creditInfoEl.innerHTML = `Customer has <strong>${currentCredits}</strong> hours of credit. This lesson is <strong>${durationHours.toFixed(1)}</strong> hours.`;
 
     const buttonsContainer = document.getElementById('completion-buttons');
     buttonsContainer.innerHTML = `<button id="complete-paid-btn" class="${btnGreen}">Paid Now</button><button id="complete-credit-btn" class="${btnPrimary}">Use Lesson Credits</button><button id="complete-unpaid-btn" class="${btnSecondary}">Remains Unpaid</button><button onclick="closeCompletionModal()" class="${btnSecondary}">Cancel</button>`;
 
     document.getElementById('complete-paid-btn').onclick = () => {
-        bookingData.status = 'Completed';
         bookingData.paymentStatus = 'Paid';
         finalizeSaveBooking(bookingData);
         closeCompletionModal();
     };
 
     document.getElementById('complete-unpaid-btn').onclick = () => {
-        bookingData.status = 'Completed';
         bookingData.paymentStatus = 'Unpaid';
         finalizeSaveBooking(bookingData);
         closeCompletionModal();
@@ -3460,7 +3118,6 @@ function openCompletionModal(bookingData) {
             const customerIndex = state.customers.findIndex(s => s.id === customer.id);
             state.customers[customerIndex].driving_school_details.lesson_credits -= durationHours;
 
-            bookingData.status = 'Completed';
             bookingData.paymentStatus = 'Paid (Credit)';
             finalizeSaveBooking(bookingData);
             showToast(`Deducted ${durationHours.toFixed(1)} hours from ${customer.name}. New balance: ${state.customers[customerIndex].driving_school_details.lesson_credits.toFixed(1)} hours.`);
@@ -3510,22 +3167,7 @@ function formatDateAndHighlight(dateString) {
     return `<span class="${colorClass}">${date.toLocaleDateString('en-GB')}</span>`;
 }
 
-function sanitizeHTML(str) {
-    if (!str) return '';
-    return str.toString()
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
 
-function generateUUID() {
-    // Generate a more compliant UUID v4 using the browser's Crypto API
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-    );
-}
 
 function toLocalDateString(date) {
     const year = date.getFullYear();
@@ -3534,21 +3176,6 @@ function toLocalDateString(date) {
     return `${year}-${month}-${day}`;
 }
 
-function parseYYYYMMDD(dateString) {
-    if (!dateString || typeof dateString !== 'string') return null;
-    const parts = dateString.split('-');
-    if (parts.length !== 3) return null;
-    // Note: Month is 0-indexed in the Date constructor
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    // Basic validation
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
-        console.error("Invalid date component provided to parseYYYYMMDD:", dateString);
-        return null;
-    }
-    return new Date(year, month, day);
-}
 
 function timeToMinutes(timeStr) {
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -3618,22 +3245,8 @@ function populateTimeSelects() {
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
     const select = document.getElementById(elementId);
-    select.innerHTML = ''; // Clear existing options
-
-    if (includeAll) {
-        const allOption = document.createElement('option');
-        allOption.value = 'all';
-        allOption.textContent = '-- All --';
-        select.appendChild(allOption);
-    } else {
-        const selectOption = document.createElement('option');
-        selectOption.value = '';
-        selectOption.textContent = '-- Select --';
-        select.appendChild(selectOption);
-    }
-
+    select.innerHTML = includeAll ? '<option value="all">-- All --</option>' : '<option value="">-- Select --</option>';
     data.forEach(item => {
-        const option = document.createElement('option');
         let displayText = item[nameKey] || item.name;
         if (!displayText && item.make && item.model) {
             displayText = `${item.make} ${item.model}`;
@@ -3641,17 +3254,7 @@ function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
         if ((elementId.includes('customer') || elementId.includes('student')) && item.phone) {
             displayText += ` (${item.phone})`;
         }
-
-        option.value = item.id;
-
-        // For the resource dropdown, check compliance
-        if (elementId === 'booking-resource' && item.resource_type === 'VEHICLE' && item.isCompliant === false) {
-            displayText += ' (Non-Compliant)';
-            option.disabled = true;
-        }
-
-        option.textContent = displayText; // Text content is automatically sanitized by the browser
-        select.appendChild(option);
+        select.innerHTML += `<option value="${item.id}">${displayText || item.id}</option>`;
     });
 }
 
@@ -3900,7 +3503,7 @@ function pixelsToTime(pixels) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border-blue-500 text-blue-700', onClick, buttonText = 'View', isDismissible = true}) {
+function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border-blue-500 text-blue-700', onClick, isDismissible = true}) {
     const container = document.getElementById('dashboard-notifications');
     if (document.getElementById(id)) return;
 
@@ -3914,7 +3517,7 @@ function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border
     let content = `<div class="flex-grow">${message}</div>`;
 
     if (onClick) {
-        const button = `<button onclick="${onClick}" class="ml-4 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">${buttonText}</button>`;
+        const button = `<button onclick="${onClick}" class="ml-4 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">View</button>`;
         content += button;
     }
 
@@ -3927,58 +3530,24 @@ function addDashboardNotification({id, message, alertClass = 'bg-blue-100 border
     container.appendChild(alertDiv);
 }
 
-function handleWaitingListNotificationClick(waitlistItemId) {
-    const entry = state.waitingList.find(item => item.id === waitlistItemId);
-    if (entry) {
-        sendWaitingListSms(entry);
-        state.waitingList = state.waitingList.filter(item => item.id !== waitlistItemId);
-        debouncedSaveState();
-        const notificationEl = document.getElementById(`wl_notification_${waitlistItemId}`);
-        if (notificationEl) {
-            notificationEl.remove();
-        }
-        showToast('Notification sent and item removed from waiting list.');
-        if (currentView === 'waiting-list') {
-            renderWaitingListView();
-        }
-    }
-}
-
 function checkWaitingListFor(cancelledBooking) {
     if (!cancelledBooking) return;
-
-    const matchingEntries = state.waitingList
-        .filter(item => {
-            const dateMatch = item.date === cancelledBooking.date;
-            const timeMatch = item.startTime === cancelledBooking.startTime && item.endTime === cancelledBooking.endTime;
-            const staffMatch = !item.staffId || item.staffId === 'any' || item.staffId === cancelledBooking.staffId;
-            const resourceMatch = !item.resourceIds || item.resourceIds.length === 0 ||
-                                  (cancelledBooking.resourceIds && cancelledBooking.resourceIds.some(r => item.resourceIds.includes(r)));
-            return dateMatch && timeMatch && staffMatch && resourceMatch;
-        })
-        .sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt));
-
-    if (matchingEntries.length === 0) return;
+    const matchingEntries = state.waitingList.filter(item =>
+        item.date === cancelledBooking.date &&
+        item.startTime === cancelledBooking.startTime &&
+        item.endTime === cancelledBooking.endTime &&
+        (item.staffId === cancelledBooking.staffId || (item.resourceIds && cancelledBooking.resourceIds && item.resourceIds.some(r => cancelledBooking.resourceIds.includes(r))))
+    );
 
     matchingEntries.forEach(entry => {
         const customer = state.customers.find(s => s.id === entry.customerId);
         if (customer) {
-            if (state.settings.autoNotifyWaitingList) {
-                addDashboardNotification({
-                    id: `wl_notification_${entry.id}`,
-                    message: `A slot has opened for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
-                    alertClass: 'bg-green-100 border-green-500 text-green-800',
-                    onClick: `handleWaitingListNotificationClick('${entry.id}')`,
-                    buttonText: 'Notify'
-                });
-            } else {
-                addDashboardNotification({
-                    id: `wl_notification_${entry.id}`,
-                    message: `A slot has opened up for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
-                    alertClass: 'bg-green-100 border-green-500 text-green-800',
-                    onClick: `showView('waiting-list')`
-                });
-            }
+            addDashboardNotification({
+                id: `wl_notification_${entry.id}`,
+                message: `A slot has opened up for <strong>${sanitizeHTML(customer.name)}</strong> on ${entry.date} at ${entry.startTime}.`,
+                alertClass: 'bg-green-100 border-green-500 text-green-800',
+                onClick: `showView('waiting-list')`
+            });
         }
     });
 }
@@ -4075,34 +3644,6 @@ function copyPaymentReminder(customerId) {
     copyToClipboard(message);
 }
 
-function sendWaitingListSms(waitlistItem) {
-    const customer = state.customers.find(c => c.id === waitlistItem.customerId);
-    if (!customer || !customer.phone) {
-        console.warn('Cannot send waiting list SMS: customer or phone number not found.', waitlistItem);
-        return;
-    }
-
-    let message = state.settings.smsTemplate || 'Hi [CustomerFirstName], a slot has opened up on [LessonDate] at [LessonTime]. Please contact us to book.';
-
-    const customerFirstName = customer.name.split(' ')[0];
-    const lessonDate = parseYYYYMMDD(waitlistItem.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-    const lessonTime = waitlistItem.startTime;
-    const instructorName = state.settings.instructorName;
-
-    message = message.replace(/\[CustomerFirstName\]/g, customerFirstName)
-                     .replace(/\[CustomerFullName\]/g, customer.name)
-                     .replace(/\[LessonDate\]/g, lessonDate)
-                     .replace(/\[LessonTime\]/g, lessonTime)
-                     .replace(/\[InstructorName\]/g, instructorName);
-
-    // Create and trigger an sms link
-    const link = document.createElement('a');
-    link.href = `sms:${customer.phone}?body=${encodeURIComponent(message)}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
 function formatGoogleCalendarDateUTC(date, time) {
     const dateObj = new Date(`${date}T${time}:00`);
     return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -4122,38 +3663,6 @@ function exportToGoogleCalendar(bookingId) {
     const location = booking.pickup || '';
     const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${encodeURIComponent(dates)}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
     window.open(url, '_blank');
-}
-
-function generateDailyRoute() {
-    const dateString = toLocalDateString(currentDate);
-    const dayBookings = state.bookings.filter(b => b.date === dateString && b.status !== 'Cancelled' && b.pickup);
-
-    if (dayBookings.length < 2) {
-        showDialog({
-            title: 'Not Enough Locations',
-            message: 'You need at least two bookings with pickup locations on this day to generate a route.',
-            buttons: [{ text: 'OK', class: btnPrimary }]
-        });
-        return;
-    }
-
-    // Get unique pickup locations
-    const locations = [...new Set(dayBookings.map(b => b.pickup.trim()))];
-
-    if (locations.length < 2) {
-        showDialog({
-            title: 'Not Enough Unique Locations',
-            message: 'You need at least two unique pickup locations to generate a route.',
-            buttons: [{ text: 'OK', class: btnPrimary }]
-        });
-        return;
-    }
-
-    const baseUrl = 'https://www.google.com/maps/dir/';
-    const encodedLocations = locations.map(loc => encodeURIComponent(loc)).join('/');
-    const finalUrl = baseUrl + encodedLocations;
-
-    window.open(finalUrl, '_blank');
 }
 
 function printInvoice() {
@@ -4235,40 +3744,42 @@ function exportBillingToExcel() {
 }
 
 function exportReportsToExcel() {
-    const reportsData = getReportsData();
-    const sanitizeCell = (cell) => {
-        const str = String(cell ?? '');
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-            ? `"${str.replace(/"/g, '""')}"`
-            : str;
-    };
+    const { incomeExpenseReport, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport } = getReportsData();
+    const sanitizeCell = (cell) => { const str = String(cell ?? ''); return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str; };
 
-    let csvContent = [];
-    const reportOrder = [
-        'incomeExpenseReport', 'servicePopularityReport', 'lessonPackagePopularityReport',
-        'topCustomersReport', 'staffPerformanceReport', 'resourceUtilisationReport',
-        'mileageReport', 'peakHoursReport'
-    ];
+    const reports = [incomeExpenseReport, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport];
+    const maxRows = Math.max(...reports.map(r => r.data.length));
+    let csvRows = [];
 
-    reportOrder.forEach(key => {
-        const report = reportsData[key];
-        if (report && report.data.length > 0) {
-            csvContent.push(report.title);
-            csvContent.push(report.headers.map(sanitizeCell).join(","));
-            report.data.forEach(row => {
-                csvContent.push(row.map(sanitizeCell).join(","));
-            });
-            csvContent.push(""); // Add a blank line for separation
-        }
+    let titleRow = [];
+    reports.forEach(report => {
+        titleRow.push(report.title);
+        for (let i = 1; i < report.headers.length; i++) titleRow.push("");
+        titleRow.push("");
     });
+    csvRows.push(titleRow.map(sanitizeCell).join(","));
 
-    if (csvContent.length === 0) {
-        showToast("No data available to export.");
-        return;
+    let headerRow = [];
+    reports.forEach(report => {
+        headerRow.push(...report.headers);
+        headerRow.push("");
+    });
+    csvRows.push(headerRow.map(sanitizeCell).join(","));
+
+    for (let i = 0; i < maxRows; i++) {
+        let dataRow = [];
+        reports.forEach(report => {
+            const rowData = report.data[i] || [];
+            for (let j = 0; j < report.headers.length; j++) {
+                dataRow.push(rowData[j] || "");
+            }
+            dataRow.push("");
+        });
+        csvRows.push(dataRow.map(sanitizeCell).join(","));
     }
 
-    const fullCsv = "data:text/csv;charset=utf-8," + csvContent.join("\r\n");
-    const encodedUri = encodeURI(fullCsv);
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\r\n");
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "comprehensive_report.csv");
@@ -4400,6 +3911,7 @@ function getReportsData() {
 
     const incomeByMonth = {};
     state.transactions.forEach(t => {
+        // Only count actual payments (cash) and package sales (pre-paid credit)
         if (t.type === 'package_sale' || t.type === 'payment') {
             const monthYear = t.date.substring(0, 7);
             if (!incomeByMonth[monthYear]) incomeByMonth[monthYear] = 0;
@@ -4443,7 +3955,7 @@ function getReportsData() {
         data: Object.entries(serviceCounts).map(([serviceId, count]) => {
             const service = state.services.find(s => s.id === serviceId);
             return [service ? service.service_name : 'Unknown Service', count];
-        }).sort((a, b) => b[1] - a[1])
+        })
     };
 
     const customerBookingCounts = {};
@@ -4462,7 +3974,7 @@ function getReportsData() {
 
     const staffPerformance = {};
     state.staff.forEach(i => staffPerformance[i.id] = 0);
-    bookings.forEach(b => { if (staffPerformance.hasOwnProperty(b.staffId)) staffPerformance[b.staffId]++; });
+    bookings.forEach(b => { if(staffPerformance.hasOwnProperty(b.staffId)) staffPerformance[b.staffId]++; });
     const staffPerformanceReport = {
         title: "Staff Performance",
         headers: ["Staff", "Bookings Handled"],
@@ -4472,9 +3984,9 @@ function getReportsData() {
     const resourceUtilisation = {};
     state.resources.forEach(v => resourceUtilisation[v.id] = 0);
     bookings.forEach(b => {
-        if (b.resourceIds) {
+        if(b.resourceIds) {
             b.resourceIds.forEach(resId => {
-                if (resourceUtilisation.hasOwnProperty(resId)) resourceUtilisation[resId]++;
+                 if(resourceUtilisation.hasOwnProperty(resId)) resourceUtilisation[resId]++;
             });
         }
     });
@@ -4485,55 +3997,30 @@ function getReportsData() {
     };
 
     const peakHours = {};
-    for (let i = 7; i <= 21; i++) { peakHours[String(i).padStart(2, '0')] = 0; }
-    bookings.forEach(b => { const startHour = b.startTime.split(':')[0]; if (peakHours.hasOwnProperty(startHour)) peakHours[startHour]++; });
+    for(let i=7; i<=21; i++) { peakHours[String(i).padStart(2, '0')] = 0; }
+    bookings.forEach(b => { const startHour = b.startTime.split(':')[0]; if(peakHours.hasOwnProperty(startHour)) peakHours[startHour]++; });
     const peakHoursReport = {
         title: "Peak Booking Hours",
         headers: ["Hour", "Number of Bookings"],
         data: Object.entries(peakHours).map(([hour, count]) => [`${hour}:00`, count])
     };
 
-    const lessonPackagePopularityReportData = [
-        ...Object.entries(serviceCounts).map(([serviceId, count]) => {
-            const service = state.services.find(s => s.id === serviceId);
-            return [service ? service.service_name : 'Unknown Service', count];
-        }),
-        ...Object.entries(packageCounts).map(([packageId, count]) => {
-            const pkg = state.settings.packages.find(p => p.id === packageId);
-            return [pkg ? pkg.name : 'Unknown Package', count];
-        })
-    ].sort((a, b) => b[1] - a[1]);
-
     const lessonPackagePopularityReport = {
         title: "Lesson & Package Popularity",
         headers: ["Item", "Count"],
-        data: lessonPackagePopularityReportData
+        data: [
+            ...Object.entries(serviceCounts).map(([serviceId, count]) => {
+                const service = state.services.find(s => s.id === serviceId);
+                return { name: service ? service.service_name : 'Unknown Service', count };
+            }),
+            ...Object.entries(packageCounts).map(([packageId, count]) => {
+                const pkg = state.settings.packages.find(p => p.id === packageId);
+                return { name: pkg ? pkg.name : 'Unknown Package', count };
+            })
+        ].sort((a, b) => b.count - a.count)
     };
 
-    const mileageReport = {
-        title: "Mileage & Efficiency Report",
-        headers: ["Vehicle", "Trips Logged", "Total Distance (km)"],
-        data: []
-    };
-    const mileageBookings = state.bookings.filter(b => b.status === 'Completed' && b.startMileage != null && b.endMileage != null && b.endMileage > b.startMileage);
-    if (mileageBookings.length > 0) {
-        const vehicleMileage = {};
-        mileageBookings.forEach(booking => {
-            const vehicleId = booking.resourceIds && booking.resourceIds[0];
-            if (!vehicleId) return;
-            if (!vehicleMileage[vehicleId]) {
-                const vehicle = state.resources.find(r => r.id === vehicleId);
-                vehicleMileage[vehicleId] = { name: vehicle ? vehicle.resource_name : 'Unknown Vehicle', totalDistance: 0, tripCount: 0 };
-            }
-            const distance = booking.endMileage - booking.startMileage;
-            vehicleMileage[vehicleId].totalDistance += distance;
-            vehicleMileage[vehicleId].tripCount++;
-        });
-        mileageReport.data = Object.values(vehicleMileage).map(v => [v.name, v.tripCount, v.totalDistance.toLocaleString()]);
-    }
-
-
-    return { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport, mileageReport };
+    return { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport };
 }
 
 function generateOverdueReport() {
@@ -4591,10 +4078,10 @@ function generateCharts() {
 
     if (lessonPackagePopularityReport && lessonPackagePopularityReport.data.length > 0) {
         createChart('lessonPackagePopularityChart', 'bar', {
-            labels: lessonPackagePopularityReport.data.map(item => item[0]),
+            labels: lessonPackagePopularityReport.data.map(item => item.name),
             datasets: [{
                 label: 'Number of Times Booked/Sold',
-                data: lessonPackagePopularityReport.data.map(item => item[1]),
+                data: lessonPackagePopularityReport.data.map(item => item.count),
                 backgroundColor: 'rgba(75, 192, 192, 0.5)',
                 borderColor: 'rgba(75, 192, 192, 1)',
                 borderWidth: 1
