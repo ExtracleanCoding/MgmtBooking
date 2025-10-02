@@ -287,7 +287,11 @@ function runDataMigration() {
 }
 
 function addDummyData() {
-    if (state.customers && state.customers.length > 0) {
+    const hasAnyData = (state.customers && state.customers.length > 0) ||
+                       (state.staff && state.staff.length > 0) ||
+                       (state.resources && state.resources.length > 0) ||
+                       (state.services && state.services.length > 0);
+    if (hasAnyData) {
         return;
     }
 
@@ -3000,9 +3004,10 @@ function toggleVehicleFields() {
 function openBlockDatesModal() {
     const modal = document.getElementById('block-dates-modal');
     const staffSelect = document.getElementById('block-staff');
-    staffSelect.innerHTML = '<option value="all">All Staff (School Holiday)</option>';
+    staffSelect.innerHTML = ''; // Clear existing options
+    staffSelect.add(new Option('All Staff (School Holiday)', 'all'));
     state.staff.forEach(i => {
-        staffSelect.innerHTML += `<option value="${i.id}">${i.name}</option>`;
+        staffSelect.add(new Option(i.name, i.id));
     });
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
