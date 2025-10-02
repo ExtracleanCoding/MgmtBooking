@@ -9,8 +9,9 @@
  * @created 2025-09-11
  */
 
-function sanitizeHTML(str) {
-    if (!str) return '';
+function sanitizeHTML(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
     return str.replace(/[&<>"']/g, tag => ({
         '&': '&amp;',
         '<': '&lt;',
@@ -18,6 +19,16 @@ function sanitizeHTML(str) {
         '"': '&quot;',
         "'": '&#39;'
     }[tag] || tag));
+}
+
+function normalizeCollection(collection) {
+    if (Array.isArray(collection)) {
+        return collection;
+    }
+    if (collection && typeof collection === 'object') {
+        return Object.values(collection);
+    }
+    return [];
 }
 
 function parseYYYYMMDD(dateString) {
@@ -270,7 +281,7 @@ function runDataMigration() {
     localStorage.removeItem('instructors');
     localStorage.removeItem('vehicles');
     // Also remove the old bookings key to prevent orphaned data
-    localStorage.removeItem('bookings');
+    // localStorage.removeItem('bookings'); // This line was deleting the new bookings data.
     localStorage.setItem(MIGRATION_KEY, 'true');
     showToast("Data model updated to v3.0.0!");
 }
@@ -412,11 +423,9 @@ function changeDate(unit, direction) {
 function loadState() {
     try {
         const defaultSettings = {
-            rates: { standard: 30.00, intermediate: 35.00, advanced: 40.00 },
             mockTestRate: 60.00,
             mockTestDuration: 1.5,
             packages: [],
-            suggestionCount: 3,
             instructorName: 'Ray Ryan',
             instructorAddress: '123 Driving School Ln, Town, T12 3AB',
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
@@ -458,6 +467,7 @@ function loadState() {
 
         const savedSettings = safeJSONParse(DB_KEYS.SETTINGS, {});
         state.settings = deepMerge(defaultSettings, savedSettings);
+
     } catch (error) {
         console.error("Failed to load state from localStorage:", error);
         showDialog({
@@ -506,15 +516,10 @@ function saveState() {
 
 function handleSaveSettings(event) {
     event.preventDefault();
-    const standardRate = parseFloat(document.getElementById('rate-standard').value);
-    const intermediateRate = parseFloat(document.getElementById('rate-intermediate').value);
-    const advancedRate = parseFloat(document.getElementById('rate-advanced').value);
     const mockTestRate = parseFloat(document.getElementById('mock-test-rate').value);
     const mockTestDuration = parseFloat(document.getElementById('mock-test-duration').value);
-    const suggestionCountVal = parseInt(document.getElementById('suggestion-count').value, 10);
 
-    if (isNaN(standardRate) || standardRate < 0 || isNaN(intermediateRate) || intermediateRate < 0 || isNaN(advancedRate) || advancedRate < 0 ||
-        isNaN(mockTestRate) || mockTestRate < 0 || isNaN(mockTestDuration) || mockTestDuration <= 0) {
+    if (isNaN(mockTestRate) || mockTestRate < 0 || isNaN(mockTestDuration) || mockTestDuration <= 0) {
         showDialog({
             title: 'Invalid Input',
             message: 'Please enter valid, non-negative numbers for all rates and a positive duration for mock tests.',
@@ -523,12 +528,8 @@ function handleSaveSettings(event) {
         return;
     }
 
-    state.settings.rates.standard = standardRate;
-    state.settings.rates.intermediate = intermediateRate;
-    state.settings.rates.advanced = advancedRate;
     state.settings.mockTestRate = mockTestRate;
     state.settings.mockTestDuration = mockTestDuration;
-    state.settings.suggestionCount = isNaN(suggestionCountVal) || suggestionCountVal < 1 ? 3 : suggestionCountVal;
     state.settings.instructorName = document.getElementById('instructor-name').value;
     state.settings.instructorAddress = document.getElementById('instructor-address').value;
     state.settings.paymentDetails = document.getElementById('payment-details').value;
@@ -562,7 +563,7 @@ function handleSaveSettings(event) {
         });
     }
 
-    debouncedSaveState();
+    saveState();
     showDialog({ title: 'Success', message: 'Settings saved.', buttons: [{ text: 'OK', class: btnPrimary }] });
 }
 
@@ -717,10 +718,11 @@ function renderGenericListView(viewName, title, columns, data, addFn, editFn, de
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
     container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
     const listContainer = document.getElementById(`${viewName}-list-table`);
-    if (data.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
+    const dataArray = normalizeCollection(data);
+    if (dataArray.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
 
     const tableHeaders = columns.map(c => `<th class="${c.class || ''}">${c.header}</th>`).join('');
-    const tableRows = data.map(item => {
+    const tableRows = dataArray.map(item => {
         let actionsHtml;
 
         if (viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID) {
@@ -953,15 +955,7 @@ function renderSettingsView() {
             <div>
                 <h2 class="text-xl font-bold mb-4 text-gray-900">Settings</h2>
                 <form onsubmit="handleSaveSettings(event)" class="space-y-6">
-                     <div>
-                        <h3 class="text-lg font-medium mb-2">Lesson Rates (€)</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div><label for="rate-standard" class="block mb-1 text-sm font-medium text-gray-700">Standard</label><input type="number" id="rate-standard" value="${state.settings.rates.standard.toFixed(2)}" step="0.01" required class="w-full"></div>
-                            <div><label for="rate-intermediate" class="block mb-1 text-sm font-medium text-gray-700">Intermediate</label><input type="number" id="rate-intermediate" value="${state.settings.rates.intermediate.toFixed(2)}" step="0.01" required class="w-full"></div>
-                            <div><label for="rate-advanced" class="block mb-1 text-sm font-medium text-gray-700">Advanced</label><input type="number" id="rate-advanced" value="${state.settings.rates.advanced.toFixed(2)}" step="0.01" required class="w-full"></div>
-                        </div>
-                    </div>
-                    <div class="border-t border-gray-200 pt-6">
+                     <div class="border-t border-gray-200 pt-6">
                         <h3 class="text-lg font-medium mb-2">Mock Test Settings</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div><label for="mock-test-rate" class="block mb-1 text-sm font-medium text-gray-700">Mock Test Rate (€)</label><input type="number" id="mock-test-rate" value="${(state.settings.mockTestRate || 60).toFixed(2)}" step="0.01" required class="w-full"></div>
@@ -996,11 +990,6 @@ function renderSettingsView() {
                     <div class="border-t border-gray-200 pt-6">
                         <h3 class="text-lg font-medium mb-2">Booking Settings</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label for="suggestion-count" class="block mb-1 text-sm font-medium text-gray-700">Conflict Suggestion Count</label>
-                                <input type="number" id="suggestion-count" value="${state.settings.suggestionCount || 3}" min="1" max="10" class="w-full">
-                                <p class="text-xs text-gray-500 mt-1">Number of alternative time slots to suggest when a conflict occurs (1-10).</p>
-                            </div>
                             <div>
                                 <label for="first-day-of-week" class="block mb-1 text-sm font-medium text-gray-700">First Day of the Week</label>
                                 <select id="first-day-of-week" class="w-full">
@@ -1230,10 +1219,10 @@ function renderDayView() {
         const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
         const bookingClass = `timeline-booking ${isMockTest ? 'mock-test' : ''}`;
         const bookingTitle = service ? `${service.service_name}: ${customer ? customer.name : 'Unknown'}` : (customer ? customer.name : 'Unknown');
-        return `<div onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
+        return `<div draggable="true" ondragstart="handleDragStart(event, '${booking.id}')" onclick="openBookingModal('${dateString}', '${booking.id}')" class="${bookingClass}" style="position: absolute; left: ${left}%; width: ${width}%; top: ${top}px; height: ${height}px; z-index: ${10 + booking.column}; box-sizing: border-box; padding: 2px 4px;"><p class="font-semibold text-sm">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${booking.startTime}-${booking.endTime}</p></div>`;
     }).join('');
 
-    container.innerHTML = `<div id="day-timeline" class="relative overflow-y-auto no-scrollbar border-t border-gray-200" style="height: 600px;" ${!isPast ? 'onmousedown="startDrag(event)"' : ''}><div class="ml-16">${hourSlots}</div><div class="absolute top-0 left-0 right-0 bottom-0">${bookingHtml}<div id="selection-box" class="hidden"></div></div></div>`;
+    container.innerHTML = `<div id="day-timeline" ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)" class="relative overflow-y-auto no-scrollbar border-t border-gray-200" style="height: 600px;" ${!isPast ? 'onmousedown="startDrag(event)"' : ''}><div class="ml-16">${hourSlots}</div><div class="absolute top-0 left-0 right-0 bottom-0">${bookingHtml}<div id="selection-box" class="hidden"></div></div></div>`;
     selectionBox = document.getElementById('selection-box');
 }
 
@@ -1291,7 +1280,7 @@ function renderWeekView() {
             const isMockTest = service && service.service_name.toLowerCase().includes('mock test');
             const bookingClass = isMockTest ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200';
             const bookingTitle = service ? `${service.service_name.split(' ')[0]}: ${customer ? customer.name.split(' ')[0] : '...'}` : (customer ? customer.name : 'Unknown');
-            return `<div onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
+            return `<div draggable="true" ondragstart="handleDragStart(event, '${b.id}')" onclick="event.stopPropagation(); openBookingModal('${dateString}', '${b.id}')" class="p-1 my-1 rounded-md ${bookingClass} cursor-pointer"><p class="truncate text-xs font-medium">${sanitizeHTML(bookingTitle)}</p><p class="text-xs">${b.startTime}</p></div>`;
         }).join('');
 
         let blockedContent = '';
@@ -1304,7 +1293,8 @@ function renderWeekView() {
             }).join('');
         }
 
-        weekHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs}><div class="flex justify-between items-center"><span class="day-number ${isToday ? 'is-today' : ''}">${day.getDate()}</span>${!isPast && !isSchoolHoliday && dayBookings.length === 0 ? `<button onclick="event.stopPropagation(); openBookingModal('${dateString}');" class="text-gray-400 hover:text-indigo-600 text-xl">+</button>` : ''}</div><div class="mt-1 space-y-1">${blockedContent}${bookingItems}</div></div>`;
+        const dropHandlers = isPast ? '' : `ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)"`;
+        weekHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs} ${dropHandlers}><div class="flex justify-between items-center"><span class="day-number ${isToday ? 'is-today' : ''}">${day.getDate()}</span>${!isPast && !isSchoolHoliday && dayBookings.length === 0 ? `<button onclick="event.stopPropagation(); openBookingModal('${dateString}');" class="text-gray-400 hover:text-indigo-600 text-xl">+</button>` : ''}</div><div class="mt-1 space-y-1">${blockedContent}${bookingItems}</div></div>`;
     }
     weekHtml += '</div>';
     container.innerHTML = weekHtml;
@@ -1362,7 +1352,8 @@ function renderMonthView() {
             content += bookingContent;
         }
 
-        gridHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs}>${content}</div>`;
+        const dropHandlers = isPast ? '' : `ondragover="allowDrop(event)" ondrop="drop(event, '${dateString}')" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)"`;
+        gridHtml += `<div class="${cellClass}" ${clickHandler ? `onclick="${clickHandler}"` : ''} ${cellAttrs} ${dropHandlers}>${content}</div>`;
     }
     gridHtml += `</div>`;
     container.innerHTML = gridHtml;
@@ -2880,11 +2871,6 @@ function openSellPackageModal(customerId) {
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
 }
 
-function closeSellPackageModal() {
-    const modal = document.getElementById('sell-package-modal');
-    modal.querySelector('.modal').classList.add('scale-95', 'opacity-0');
-    setTimeout(() => modal.classList.add('hidden'), 300);
-}
 
 function updatePackageSummary() {
     const selectEl = document.getElementById('sell-package-select');
@@ -3193,22 +3179,7 @@ function formatDateAndHighlight(dateString) {
     return `<span class="${colorClass}">${date.toLocaleDateString('en-GB')}</span>`;
 }
 
-function sanitizeHTML(str) {
-    if (!str) return '';
-    return str.toString()
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
 
-function generateUUID() {
-    // Generate a more compliant UUID v4 using the browser's Crypto API
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-    );
-}
 
 function toLocalDateString(date) {
     const year = date.getFullYear();
@@ -3217,21 +3188,6 @@ function toLocalDateString(date) {
     return `${year}-${month}-${day}`;
 }
 
-function parseYYYYMMDD(dateString) {
-    if (!dateString || typeof dateString !== 'string') return null;
-    const parts = dateString.split('-');
-    if (parts.length !== 3) return null;
-    // Note: Month is 0-indexed in the Date constructor
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    // Basic validation
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
-        console.error("Invalid date component provided to parseYYYYMMDD:", dateString);
-        return null;
-    }
-    return new Date(year, month, day);
-}
 
 function timeToMinutes(timeStr) {
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -3443,6 +3399,108 @@ function endDrag(e) {
     }
     openBookingModal(toLocalDateString(currentDate), null, startTime, endTime);
 }
+
+// --- Drag and Drop Handlers ---
+
+function handleDragStart(event, bookingId) {
+    event.dataTransfer.setData("text/plain", bookingId);
+    event.dataTransfer.effectAllowed = 'move';
+    // Add a class to the dragged element for styling
+    setTimeout(() => {
+        // Check if the target exists before adding a class
+        if(event.target && typeof event.target.classList !== 'undefined') {
+            event.target.classList.add('dragging');
+        }
+    }, 0);
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+function handleDragEnter(event) {
+    event.preventDefault();
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(event) {
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.remove('drag-over');
+    }
+}
+
+function drop(event, newDate) {
+    event.preventDefault();
+    const dropTarget = event.target.closest('.calendar-cell, #day-timeline');
+    if (dropTarget) {
+        dropTarget.classList.remove('drag-over');
+    }
+
+    const bookingId = event.dataTransfer.getData("text/plain");
+    // Find and remove the 'dragging' class from the original element
+    const draggedElement = document.querySelector('.dragging');
+    if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+    }
+
+    const bookingIndex = state.bookings.findIndex(b => b.id === bookingId);
+    if (bookingIndex === -1) {
+        console.error("Could not find booking to drop:", bookingId);
+        return;
+    }
+
+    const originalBooking = state.bookings[bookingIndex];
+
+    // Create a deep copy to modify
+    const updatedBooking = JSON.parse(JSON.stringify(originalBooking));
+    updatedBooking.date = newDate;
+
+    // If dropping on the day view, calculate the new time
+    if (currentView === 'day') {
+        const timeline = document.getElementById('day-timeline');
+        const rect = timeline.getBoundingClientRect();
+        // Calculate the drop position relative to the timeline div
+        const dropY = event.clientY - rect.top;
+
+        const originalDuration = timeToMinutes(originalBooking.endTime) - timeToMinutes(originalBooking.startTime);
+        const newStartTime = pixelsToTime(dropY);
+        const newEndTime = minutesToTime(timeToMinutes(newStartTime) + originalDuration);
+
+        updatedBooking.startTime = newStartTime;
+        updatedBooking.endTime = newEndTime;
+    }
+    // For week/month view drops, we keep the original start/end times, only the date changes.
+
+    const conflict = findBookingConflict(updatedBooking);
+    if (conflict) {
+        showDialog({
+            title: 'Booking Conflict',
+            message: `Cannot move booking. ${conflict}`,
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // Check for user intent: move vs copy
+    if (event.ctrlKey || event.metaKey) { // Copy on Ctrl/Cmd + Drop
+        updatedBooking.id = `booking_${generateUUID()}`; // new ID for the copy
+        updatedBooking.transactionId = null; // a copy isn't paid for
+        updatedBooking.paymentStatus = 'Unpaid';
+        state.bookings.push(updatedBooking);
+        showToast('Booking copied.');
+    } else { // Move
+        state.bookings[bookingIndex] = updatedBooking;
+        showToast('Booking moved.');
+    }
+
+    debouncedSaveState();
+    refreshCurrentView();
+}
+
 
 function pixelsToTime(pixels) {
     const startHourMinutes = CALENDAR_START_HOUR * 60;
