@@ -290,7 +290,8 @@ function addDummyData() {
     const hasAnyData = (state.customers && state.customers.length > 0) ||
                        (state.staff && state.staff.length > 0) ||
                        (state.resources && state.resources.length > 0) ||
-                       (state.services && state.services.length > 0);
+                       (state.services && state.services.length > 0) ||
+                       (state.bookings && state.bookings.length > 0);
     if (hasAnyData) {
         return;
     }
