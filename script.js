@@ -2874,7 +2874,12 @@ function openSellPackageModal(customerId) {
     document.getElementById('sell-package-customer-id').value = customerId;
 
     const selectEl = document.getElementById('sell-package-select');
-    selectEl.innerHTML = packages.map(p => `<option value="${p.id}">${p.name} (${p.hours} hrs for €${p.price.toFixed(2)})</option>`).join('');
+    selectEl.innerHTML = ''; // Clear existing options safely
+    packages.forEach(p => {
+        const displayText = `${p.name} (${p.hours} hrs for €${p.price.toFixed(2)})`;
+        const option = new Option(displayText, p.id);
+        selectEl.add(option);
+    });
 
     updatePackageSummary();
 
@@ -2907,6 +2912,11 @@ function confirmSale(event) {
     if (customerIndex === -1 || !pkg) {
         showDialog({ title: 'Error', message: 'Could not find customer or package. Please try again.', buttons: [{ text: 'OK', class: btnPrimary }] });
         return;
+    }
+
+    // Ensure driving_school_details exists before trying to access it
+    if (!state.customers[customerIndex].driving_school_details) {
+        state.customers[customerIndex].driving_school_details = {};
     }
 
     const details = state.customers[customerIndex].driving_school_details;
