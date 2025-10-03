@@ -809,7 +809,7 @@ function renderResourcesView() {
 function renderGenericListView(viewName, title, columns, data, singularTitle) {
     const container = document.getElementById(`${viewName}-view`);
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
-    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button data-view="${viewName}" data-action="add" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
+    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button data-view="${sanitizeHTML(viewName)}" data-action="add" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
     const listContainer = document.getElementById(`${viewName}-list-table`);
     const dataArray = normalizeCollection(data);
     if (dataArray.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
@@ -825,12 +825,12 @@ function renderGenericListView(viewName, title, columns, data, singularTitle) {
                 <button class="ml-4 font-medium text-red-400 cursor-not-allowed" disabled>Delete</button>
             `;
         } else {
-            actionsHtml = `<button data-view="${viewName}" data-action="edit" data-id="${item.id}" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
+            actionsHtml = `<button data-view="${sanitizeHTML(viewName)}" data-action="edit" data-id="${sanitizeHTML(item.id)}" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
             if (viewName === 'customers') {
-                actionsHtml += ` <button data-view="${viewName}" data-action="view-progress" data-id="${item.id}" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
-                actionsHtml += ` <button data-view="${viewName}" data-action="sell-package" data-id="${item.id}" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
+                actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="view-progress" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
+                actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="sell-package" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
             }
-            actionsHtml += ` <button data-view="${viewName}" data-action="delete" data-id="${item.id}" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
+            actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="delete" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
         }
 
         return `<tr>${columns.map(c => `<td class="${c.class || ''}">${sanitizeHTML(c.render(item))}</td>`).join('')}<td class="text-right">${actionsHtml}</td></tr>`;
@@ -1682,7 +1682,7 @@ function renderBillingContent() {
                     <thead><tr><th>Customer</th><th class="text-center">Bookings</th><th class="text-right">Total Billed</th><th class="text-right">Total Paid</th><th class="text-right">Outstanding</th></tr></thead>
                     <tbody class="divide-y divide-gray-200">
                         ${paginatedSummaries.map(s => `
-                            <tr class="hover:bg-gray-50 cursor-pointer" data-action="select-customer" data-id="${s.id}">
+                            <tr class="hover:bg-gray-50 cursor-pointer" data-action="select-customer" data-id="${sanitizeHTML(s.id)}">
                                 <td class="font-medium">${sanitizeHTML(s.name)}</td>
                                 <td class="text-center">${s.bookingCount}</td>
                                 <td class="text-right">€${s.totalBilled.toFixed(2)}</td>
@@ -1742,7 +1742,7 @@ function renderDetailedBillingBreakdown(customerId) {
             statusHtml = `<td><span class="font-semibold ${statusColor}">${item.status}</span></td>`;
 
             if (item.status === 'Completed' && item.paymentStatus !== 'Paid' && item.paymentStatus !== 'Paid (Credit)') {
-                checkboxHtml = `<td><input type="checkbox" class="bulk-payment-checkbox" data-booking-id="${item.id}" data-fee="${item.fee || 0}"></td>`;
+                checkboxHtml = `<td><input type="checkbox" class="bulk-payment-checkbox" data-booking-id="${sanitizeHTML(item.id)}" data-fee="${item.fee || 0}"></td>`;
             }
         } else if (item.type === 'package_sale') {
             rowClass = 'bg-blue-50';
@@ -1780,11 +1780,11 @@ function renderDetailedBillingBreakdown(customerId) {
             </div>
             <div id="bulk-payment-bar" class="hidden mt-6 p-4 bg-gray-100 rounded-lg flex justify-between items-center">
                 <span class="font-semibold">Total for selected: <span id="bulk-payment-total" class="text-xl">€0.00</span></span>
-                <button id="bulk-payment-btn" data-action="record-bulk-payment" data-customer-id="${customerId}" class="${btnGreen}">Record Payment for Selected</button>
+                <button id="bulk-payment-btn" data-action="record-bulk-payment" data-customer-id="${sanitizeHTML(customerId)}" class="${btnGreen}">Record Payment for Selected</button>
             </div>
             <div class="mt-6 flex gap-2">
-                <button data-action="generate-invoice" data-customer-id="${customerId}" class="${btnPurple}">Generate Invoice</button>
-                <button data-action="copy-reminder" data-customer-id="${customerId}" class="${btnSecondary}">Copy Payment Reminder</button>
+                <button data-action="generate-invoice" data-customer-id="${sanitizeHTML(customerId)}" class="${btnPurple}">Generate Invoice</button>
+                <button data-action="copy-reminder" data-customer-id="${sanitizeHTML(customerId)}" class="${btnSecondary}">Copy Payment Reminder</button>
             </div>
         </div>
     `;
