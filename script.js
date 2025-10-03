@@ -2188,15 +2188,17 @@ function saveCustomer(event) {
         }
     }
 
+    const existingCustomer = customerId ? state.customers.find(c => c.id === customerId) : null;
+
     const customerData = {
         id: customerId || `customer_${generateUUID()}`,
         name: customerName,
         email: email,
         phone: document.getElementById('customer-phone').value,
-        creation_date: new Date().toISOString(),
+        creation_date: existingCustomer?.creation_date || new Date().toISOString(),
         driving_school_details: {
             license_number: document.getElementById('customer-license').value,
-            progress_notes: customerId ? (state.customers.find(c => c.id === customerId)?.driving_school_details?.progress_notes || []) : [],
+            progress_notes: customerId ? (existingCustomer?.driving_school_details?.progress_notes || []) : [],
             lesson_credits: lessonCredits
         }
     };
