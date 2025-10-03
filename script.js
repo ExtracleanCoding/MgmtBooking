@@ -2683,6 +2683,8 @@ function openServiceModal(id = null) {
     form.reset();
     document.getElementById('pricing-tiers-container').innerHTML = ''; // Clear tiers
 
+    let selectedPricingType = 'fixed';
+
     if (id) {
         document.getElementById('service-modal-title').textContent = 'Edit Service';
         const service = state.services.find(s => s.id === id);
@@ -2692,6 +2694,10 @@ function openServiceModal(id = null) {
             document.getElementById('service-name').value = service.service_name;
             document.getElementById('service-duration').value = service.duration_minutes;
             document.getElementById('service-base-price').value = service.base_price;
+
+            if (service.pricing_rules?.type) {
+                selectedPricingType = service.pricing_rules.type;
+            }
 
             if (service.service_type === 'TOUR') {
                 document.getElementById('service-description').value = service.description || '';
@@ -2707,6 +2713,11 @@ function openServiceModal(id = null) {
         document.getElementById('service-modal-title').textContent = 'New Service';
         document.getElementById('service-id').value = '';
     }
+    const pricingRadio = document.querySelector(`input[name="pricing-type"][value="${selectedPricingType}"]`);
+    if (pricingRadio) {
+        pricingRadio.checked = true;
+    }
+    handlePricingTypeChange(selectedPricingType);
     handleServiceTypeChange();
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
