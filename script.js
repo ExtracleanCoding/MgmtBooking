@@ -1592,7 +1592,7 @@ function renderBillingContent() {
                     <tbody class="divide-y divide-gray-200">
                         ${paginatedSummaries.map(s => `
                             <tr class="hover:bg-gray-50 cursor-pointer" onclick="handleBillingCustomerChange('${s.id}')">
-                                <td class="font-medium">${s.name}</td>
+                                <td class="font-medium">${sanitizeHTML(s.name)}</td>
                                 <td class="text-center">${s.bookingCount}</td>
                                 <td class="text-right">€${s.totalBilled.toFixed(2)}</td>
                                 <td class="text-right text-green-600">€${s.totalPaid.toFixed(2)}</td>
@@ -4311,7 +4311,12 @@ async function fetchAiModels() {
             modelIds.unshift(savedModel);
         }
 
-        modelSelect.innerHTML = modelIds.map(id => `<option value="${id}">${id}</option>`).join('');
+        modelSelect.innerHTML = ''; // Clear existing options
+        modelIds.forEach(id => {
+            // Use new Option() to prevent XSS from crafted model IDs
+            modelSelect.add(new Option(id, id));
+        });
+
         modelSelect.value = savedModel;
         showToast(`Successfully fetched ${modelIds.length} models for ${provider}.`);
 
