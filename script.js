@@ -1653,6 +1653,9 @@ function renderBillingContent() {
     const container = document.getElementById('billing-content');
     const customerSummaries = getCustomerSummaries();
 
+    const totalPages = Math.max(1, Math.ceil(customerSummaries.length / BILLING_ITEMS_PER_PAGE));
+    billingCurrentPage = Math.min(Math.max(1, billingCurrentPage), totalPages);
+
     const grandTotalRevenue = customerSummaries.reduce((sum, s) => sum + s.totalBilled, 0);
     const grandTotalPaid = customerSummaries.reduce((sum, s) => sum + s.totalPaid, 0);
     const grandTotalOutstanding = grandTotalRevenue - grandTotalPaid;
@@ -1671,11 +1674,10 @@ function renderBillingContent() {
         </div>
     `;
 
-    const totalPages = Math.ceil(customerSummaries.length / BILLING_ITEMS_PER_PAGE);
     const paginatedSummaries = customerSummaries.slice((billingCurrentPage - 1) * BILLING_ITEMS_PER_PAGE, billingCurrentPage * BILLING_ITEMS_PER_PAGE);
 
     let paginationControls = '';
-    if (totalPages > 1) {
+    if (customerSummaries.length > 0 && totalPages > 1) {
         paginationControls = `<div class="flex justify-center items-center gap-2 mt-4">
             <button data-action="prev-page" class="${btnSecondary}" ${billingCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
             ${Array.from({length: totalPages}, (_, i) => `<button data-action="go-to-page" data-page="${i + 1}" class="${i+1 === billingCurrentPage ? btnPrimary : btnSecondary}">${i+1}</button>`).join('')}
@@ -1828,39 +1830,71 @@ function recordBulkPayment(customerId) {
         return;
     }
 
-    let totalAmount = 0;
-    const bookingIdsToUpdate = [];
+    const bookingsToUpdate = Array.from(selectedCheckboxes).map(checkbox => ({
+        bookingId: checkbox.dataset.bookingId,
+        fee: parseFloat(checkbox.dataset.fee) || 0
+    }));
 
-    selectedCheckboxes.forEach(checkbox => {
-        totalAmount += parseFloat(checkbox.dataset.fee);
-        bookingIdsToUpdate.push(checkbox.dataset.bookingId);
-    });
+    const totalAmount = bookingsToUpdate.reduce((sum, item) => sum + item.fee, 0);
 
     showDialog({
         title: 'Confirm Bulk Payment',
-        message: `Are you sure you want to record a payment of €${totalAmount.toFixed(2)} for ${selectedCheckboxes.length} selected lesson(s)?`,
+        message: `Are you sure you want to record a payment of €${totalAmount.toFixed(2)} for ${bookingsToUpdate.length} selected lesson(s)?`,
         buttons: [
             { text: 'Cancel', class: btnSecondary },
             {
                 text: 'Confirm Payment',
                 class: btnGreen,
                 onClick: () => {
-                    const transaction = {
-                        id: `txn_${generateUUID()}`,
-                        date: toLocalDateString(new Date()),
-                        type: 'payment',
-                        description: `Bulk payment for ${selectedCheckboxes.length} lesson(s)`,
-                        amount: totalAmount,
-                        customerId: customerId
-                    };
-                    state.transactions.push(transaction);
+                    const paymentDate = toLocalDateString(new Date());
+                    let processedCount = 0;
 
-                    bookingIdsToUpdate.forEach(bookingId => {
-                        const bookingIndex = state.bookings.findIndex(b => b.id === bookingId);
-                        if (bookingIndex !== -1) {
-                            state.bookings[bookingIndex].paymentStatus = 'Paid';
+                    bookingsToUpdate.forEach(({ bookingId, fee }) => {
+                        const booking = state.bookings.find(b => b.id === bookingId);
+                        if (!booking) return;
+
+                        processedCount += 1;
+
+                        if (booking.transactionId) {
+                            const existingTransaction = state.transactions.find(t => t.id === booking.transactionId);
+                            if (existingTransaction) {
+                                existingTransaction.amount = fee;
+                                existingTransaction.date = paymentDate;
+                                existingTransaction.description = `Payment for booking on ${booking.date}`;
+                                existingTransaction.bookingId = booking.id;
+                            } else {
+                                const transaction = {
+                                    id: booking.transactionId,
+                                    date: paymentDate,
+                                    type: 'payment',
+                                    description: `Payment for booking on ${booking.date}`,
+                                    amount: fee,
+                                    customerId: customerId,
+                                    bookingId: booking.id
+                                };
+                                state.transactions.push(transaction);
+                            }
+                        } else {
+                            const transaction = {
+                                id: `txn_${generateUUID()}`,
+                                date: paymentDate,
+                                type: 'payment',
+                                description: `Payment for booking on ${booking.date}`,
+                                amount: fee,
+                                customerId: customerId,
+                                bookingId: booking.id
+                            };
+                            state.transactions.push(transaction);
+                            booking.transactionId = transaction.id;
                         }
+
+                        booking.paymentStatus = 'Paid';
                     });
+
+                    if (processedCount === 0) {
+                        showToast('No valid bookings were found for the selected lessons.');
+                        return;
+                    }
 
                     debouncedSaveState();
                     showToast('Bulk payment recorded successfully.');
