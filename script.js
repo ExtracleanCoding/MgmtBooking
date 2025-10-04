@@ -758,10 +758,19 @@ function deletePackage(id) {
 }
 
 function resetPackageForm() {
-    document.getElementById('package-form').reset();
-    document.getElementById('package-id').value = '';
-    document.getElementById('package-submit-btn').textContent = 'Add';
-    document.getElementById('package-cancel-btn').classList.add('hidden');
+    const idInput = document.getElementById('package-id');
+    const nameInput = document.getElementById('package-name');
+    const hoursInput = document.getElementById('package-hours');
+    const priceInput = document.getElementById('package-price');
+    const submitButton = document.getElementById('package-submit-btn');
+    const cancelButton = document.getElementById('package-cancel-btn');
+
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (hoursInput) hoursInput.value = '';
+    if (priceInput) priceInput.value = '';
+    if (submitButton) submitButton.textContent = 'Add';
+    if (cancelButton) cancelButton.classList.add('hidden');
 }
 
 
