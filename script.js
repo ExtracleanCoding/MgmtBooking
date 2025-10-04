@@ -2811,12 +2811,23 @@ function handlePricingTypeChange(pricingType) {
 function handleServiceTypeChange() {
     const serviceType = document.getElementById('service-type').value;
     const tourFields = document.getElementById('tour-fields');
+    const tieredRadio = document.querySelector('input[name="pricing-type"][value="tiered"]');
+    const fixedRadio = document.querySelector('input[name="pricing-type"][value="fixed"]');
+    const tiersContainer = document.getElementById('pricing-tiers-container');
+    const isTour = serviceType === 'TOUR';
 
-    if (serviceType === 'TOUR') {
-        tourFields.classList.remove('hidden');
+    tourFields.classList.toggle('hidden', !isTour);
+
+    if (!isTour) {
+        if (tieredRadio.checked) {
+            fixedRadio.checked = true;
+        }
+        tieredRadio.disabled = true;
+        tiersContainer.innerHTML = '';
     } else {
-        tourFields.classList.add('hidden');
+        tieredRadio.disabled = false;
     }
+
     const pricingType = document.querySelector('input[name="pricing-type"]:checked').value;
     handlePricingTypeChange(pricingType);
 }
@@ -2872,9 +2883,21 @@ function saveService(event) {
     if (serviceType === 'TOUR') {
         serviceData.description = document.getElementById('service-description').value;
         serviceData.photo_gallery = document.getElementById('service-photos').value.split('\n').filter(url => url.trim() !== '');
+        const minCapacity = parseInt(document.getElementById('service-capacity-min').value, 10) || 1;
+        const maxCapacity = parseInt(document.getElementById('service-capacity-max').value, 10) || minCapacity;
+
+        if (maxCapacity < minCapacity) {
+            showDialog({
+                title: 'Invalid Capacity',
+                message: 'Maximum capacity cannot be less than minimum capacity.',
+                buttons: [{ text: 'OK', class: btnPrimary }]
+            });
+            return;
+        }
+
         serviceData.capacity = {
-            min: parseInt(document.getElementById('service-capacity-min').value, 10) || 1,
-            max: parseInt(document.getElementById('service-capacity-max').value, 10) || 1,
+            min: minCapacity,
+            max: maxCapacity,
         };
     }
 
