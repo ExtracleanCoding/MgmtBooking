@@ -2188,18 +2188,23 @@ function saveCustomer(event) {
         }
     }
 
+    const isNewCustomer = !customerId;
+
     const customerData = {
         id: customerId || `customer_${generateUUID()}`,
         name: customerName,
         email: email,
         phone: document.getElementById('customer-phone').value,
-        creation_date: new Date().toISOString(),
         driving_school_details: {
             license_number: document.getElementById('customer-license').value,
             progress_notes: customerId ? (state.customers.find(c => c.id === customerId)?.driving_school_details?.progress_notes || []) : [],
             lesson_credits: lessonCredits
         }
     };
+
+    if (isNewCustomer) {
+        customerData.creation_date = new Date().toISOString();
+    }
 
     if (customerId) {
         const index = state.customers.findIndex(c => c.id === customerId);
@@ -2693,14 +2698,24 @@ function openServiceModal(id = null) {
             document.getElementById('service-duration').value = service.duration_minutes;
             document.getElementById('service-base-price').value = service.base_price;
 
+            // Restore the correct pricing model radio button
+            if (service.pricing_rules?.type === 'tiered') {
+                document.querySelector('input[name="pricing-type"][value="tiered"]').checked = true;
+            } else {
+                document.querySelector('input[name="pricing-type"][value="fixed"]').checked = true;
+            }
+
+            // Populate tiers if they exist, regardless of service type
+            if (service.pricing_rules?.type === 'tiered' && service.pricing_rules.tiers) {
+                service.pricing_rules.tiers.forEach(tier => addPricingTier(tier));
+            }
+
+            // Populate TOUR specific fields
             if (service.service_type === 'TOUR') {
                 document.getElementById('service-description').value = service.description || '';
                 document.getElementById('service-photos').value = (service.photo_gallery || []).join('\n');
                 document.getElementById('service-capacity-min').value = service.capacity?.min || 1;
                 document.getElementById('service-capacity-max').value = service.capacity?.max || 10;
-                if (service.pricing_rules?.type === 'tiered' && service.pricing_rules.tiers) {
-                    service.pricing_rules.tiers.forEach(tier => addPricingTier(tier));
-                }
             }
         }
     } else {
