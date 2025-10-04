@@ -31,6 +31,21 @@ function normalizeCollection(collection) {
     return [];
 }
 
+function getLessonPackages() {
+    if (!state.settings) state.settings = {};
+    const packages = normalizeCollection(state.settings.packages);
+    if (!Array.isArray(state.settings.packages)) {
+        state.settings.packages = packages;
+    }
+    return packages;
+}
+
+function getPackagePriceValue(pkg) {
+    if (!pkg) return null;
+    const priceNumber = Number(pkg.price);
+    return Number.isFinite(priceNumber) ? priceNumber : null;
+}
+
 function parseYYYYMMDD(dateString) {
     if (!dateString) return null;
     const parts = dateString.split('-');
@@ -663,18 +678,24 @@ function handleSaveSettings(event) {
 function renderPackageList() {
     const container = document.getElementById('package-list-container');
     if (!container) return; // Happens if settings view is not rendered
-    const packages = state.settings.packages || [];
+    const packages = getLessonPackages();
+    const validPackages = packages
+        .map(pkg => ({ pkg, price: getPackagePriceValue(pkg) }))
+        .filter(entry => entry.price !== null);
 
-    if (packages.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-500 py-3">No lesson packages created yet.</p>';
+    if (validPackages.length === 0) {
+        const message = packages.length === 0
+            ? 'No lesson packages created yet.'
+            : 'Lesson packages could not be displayed because their prices are invalid. Please update them in Settings.';
+        container.innerHTML = `<p class="text-center text-gray-500 py-3">${sanitizeHTML(message)}</p>`;
         return;
     }
 
-    container.innerHTML = packages.map(pkg => `
+    container.innerHTML = validPackages.map(({ pkg, price }) => `
         <div class="flex justify-between items-center p-3 bg-white border rounded-lg shadow-sm">
             <div>
                 <p class="font-semibold">${sanitizeHTML(pkg.name)}</p>
-                <p class="text-sm text-gray-600">${pkg.hours} hours for €${pkg.price.toFixed(2)}</p>
+                <p class="text-sm text-gray-600">${pkg.hours != null ? sanitizeHTML(pkg.hours) : 'N/A'} hours for €${price.toFixed(2)}</p>
             </div>
             <div class="flex gap-2">
                 <button type="button" onclick="editPackage('${pkg.id}')" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>
@@ -713,16 +734,18 @@ function savePackage(event) {
         return;
     }
 
-    if (!state.settings.packages) state.settings.packages = [];
+    const packages = getLessonPackages();
 
     if (packageId) { // Editing existing package
-        const index = state.settings.packages.findIndex(p => p.id === packageId);
+        const index = packages.findIndex(p => p.id === packageId);
         if (index !== -1) {
-            state.settings.packages[index] = { id: packageId, name: packageName, hours: hours, price: price };
+            packages[index] = { id: packageId, name: packageName, hours: hours, price: price };
         }
     } else { // Adding new package
-        state.settings.packages.push({ id: `pkg_${generateUUID()}`, name: packageName, hours: hours, price: price });
+        packages.push({ id: `pkg_${generateUUID()}`, name: packageName, hours: hours, price: price });
     }
+
+    state.settings.packages = packages;
 
     debouncedSaveState();
     renderPackageList();
@@ -730,7 +753,7 @@ function savePackage(event) {
 }
 
 function editPackage(id) {
-    const pkg = state.settings.packages.find(p => p.id === id);
+    const pkg = getLessonPackages().find(p => p.id === id);
     if (pkg) {
         document.getElementById('package-id').value = pkg.id;
         document.getElementById('package-name').value = pkg.name;
@@ -748,7 +771,7 @@ function deletePackage(id) {
         buttons: [
             { text: 'Cancel', class: btnSecondary },
             { text: 'Delete', class: btnDanger, onClick: () => {
-                state.settings.packages = state.settings.packages.filter(p => p.id !== id);
+                state.settings.packages = getLessonPackages().filter(p => p.id !== id);
                 debouncedSaveState();
                 renderPackageList();
                 showToast('Package deleted.');
@@ -3013,9 +3036,16 @@ function openSellPackageModal(customerId) {
     const customer = state.customers.find(c => c.id === customerId);
     if (!customer) return;
 
-    const packages = state.settings.packages || [];
-    if (packages.length === 0) {
-        showDialog({ title: 'No Packages', message: 'There are no lesson packages configured. Please add some in the Settings page first.', buttons: [{ text: 'OK', class: btnPrimary, onClick: () => showView('settings') }] });
+    const packages = getLessonPackages();
+    const validPackages = packages
+        .map(pkg => ({ pkg, price: getPackagePriceValue(pkg) }))
+        .filter(entry => entry.price !== null);
+
+    if (validPackages.length === 0) {
+        const dialogMessage = packages.length === 0
+            ? 'There are no lesson packages configured. Please add some in the Settings page first.'
+            : 'Existing lesson packages have invalid pricing data. Please update them in the Settings page first.';
+        showDialog({ title: 'No Packages', message: dialogMessage, buttons: [{ text: 'OK', class: btnPrimary, onClick: () => showView('settings') }] });
         return;
     }
 
@@ -3024,9 +3054,10 @@ function openSellPackageModal(customerId) {
 
     const selectEl = document.getElementById('sell-package-select');
     selectEl.innerHTML = ''; // Clear existing options safely
-    packages.forEach(p => {
-        const displayText = `${p.name} (${p.hours} hrs for €${p.price.toFixed(2)})`;
-        const option = new Option(displayText, p.id);
+    validPackages.forEach(({ pkg, price }) => {
+        const hoursLabel = pkg.hours != null ? pkg.hours : 'N/A';
+        const displayText = `${pkg.name} (${hoursLabel} hrs for €${price.toFixed(2)})`;
+        const option = new Option(displayText, pkg.id);
         selectEl.add(option);
     });
 
@@ -3041,13 +3072,21 @@ function updatePackageSummary() {
     const selectEl = document.getElementById('sell-package-select');
     const summaryEl = document.getElementById('sell-package-summary');
     const selectedPackageId = selectEl.value;
-    const pkg = state.settings.packages.find(p => p.id === selectedPackageId);
+    const pkg = getLessonPackages().find(p => p.id === selectedPackageId);
 
-    if (pkg) {
-        summaryEl.innerHTML = `This will add <strong>${pkg.hours} hours</strong> of lesson credit and record an income of <strong>€${pkg.price.toFixed(2)}</strong>.`;
-    } else {
+    if (!pkg) {
         summaryEl.innerHTML = 'Please select a package.';
+        return;
     }
+
+    const priceValue = getPackagePriceValue(pkg);
+    if (priceValue === null) {
+        summaryEl.innerHTML = 'The selected package has invalid price data. Please update it in Settings before selling it.';
+        return;
+    }
+
+    const hoursDisplay = pkg.hours != null ? sanitizeHTML(pkg.hours) : 'N/A';
+    summaryEl.innerHTML = `This will add <strong>${hoursDisplay} hours</strong> of lesson credit and record an income of <strong>€${priceValue.toFixed(2)}</strong>.`;
 }
 
 function confirmSale(event) {
@@ -3056,10 +3095,17 @@ function confirmSale(event) {
     const packageId = document.getElementById('sell-package-select').value;
 
     const customerIndex = state.customers.findIndex(c => c.id === customerId);
-    const pkg = state.settings.packages.find(p => p.id === packageId);
+    const pkg = getLessonPackages().find(p => p.id === packageId);
+    const priceValue = getPackagePriceValue(pkg);
+    const hoursValue = pkg ? Number(pkg.hours) : NaN;
 
     if (customerIndex === -1 || !pkg) {
         showDialog({ title: 'Error', message: 'Could not find customer or package. Please try again.', buttons: [{ text: 'OK', class: btnPrimary }] });
+        return;
+    }
+
+    if (!Number.isFinite(hoursValue) || priceValue === null) {
+        showDialog({ title: 'Invalid Package Data', message: 'The selected package has invalid hours or price. Please update it in Settings before selling it.', buttons: [{ text: 'OK', class: btnPrimary }] });
         return;
     }
 
@@ -3069,14 +3115,14 @@ function confirmSale(event) {
     }
 
     const details = state.customers[customerIndex].driving_school_details;
-    details.lesson_credits = (details.lesson_credits || 0) + pkg.hours;
+    details.lesson_credits = (details.lesson_credits || 0) + hoursValue;
 
     const transaction = {
         id: `txn_${generateUUID()}`,
         date: toLocalDateString(new Date()),
         type: 'package_sale',
         description: `Sale of '${pkg.name}' to ${state.customers[customerIndex].name}`,
-        amount: pkg.price,
+        amount: priceValue,
         customerId: customerId,
         packageId: packageId
     };
@@ -4092,6 +4138,7 @@ function handleRestore(event) {
 
 function getReportsData() {
     const bookings = state.bookings.filter(b => b.status === 'Completed' || b.status === 'Scheduled');
+    const packages = getLessonPackages();
 
     const packageCounts = {};
     state.transactions.forEach(t => {
@@ -4208,7 +4255,7 @@ function getReportsData() {
                 return { name: service ? service.service_name : 'Unknown Service', count };
             }),
             ...Object.entries(packageCounts).map(([packageId, count]) => {
-                const pkg = state.settings.packages.find(p => p.id === packageId);
+                const pkg = packages.find(p => p.id === packageId);
                 return { name: pkg ? pkg.name : 'Unknown Package', count };
             })
         ].sort((a, b) => b.count - a.count)
