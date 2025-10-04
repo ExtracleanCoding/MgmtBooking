@@ -159,6 +159,95 @@ const skillLevels = {
  * SECTION 2: INITIALIZATION & CORE APP LOGIC
  ******************************************************************************/
 
+function handleBillingClick(event) {
+    const target = event.target;
+
+    // Handle row click to show detailed view
+    const customerRow = target.closest('tr[data-action="select-customer"]');
+    if (customerRow) {
+        handleBillingCustomerChange(customerRow.dataset.id);
+        return;
+    }
+
+    // Handle button clicks with data attributes
+    const button = target.closest('button[data-action]');
+    if (button) {
+        const { action, customerId, page } = button.dataset;
+        switch (action) {
+            case 'clear-selection':
+                clearSelectedCustomer();
+                break;
+            case 'record-bulk-payment':
+                recordBulkPayment(customerId);
+                break;
+            case 'generate-invoice':
+                openInvoiceModal(customerId);
+                break;
+            case 'copy-reminder':
+                copyPaymentReminder(customerId);
+                break;
+            case 'prev-page':
+                handleBillingPageChange(billingCurrentPage - 1);
+                break;
+            case 'next-page':
+                handleBillingPageChange(billingCurrentPage + 1);
+                break;
+            case 'go-to-page':
+                handleBillingPageChange(parseInt(page, 10));
+                break;
+        }
+        return;
+    }
+
+    // Handle checkbox changes for bulk payment
+    if (target.matches('input.bulk-payment-checkbox')) {
+        updateBulkPaymentTotal();
+    }
+}
+
+function handleListClick(event) {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+
+    const { action, id, view } = button.dataset;
+    if (!view) return; // Not a button we care about
+
+    const viewActions = {
+        services: {
+            add: () => openServiceModal(),
+            edit: (id) => openServiceModal(id),
+            delete: (id) => deleteService(id)
+        },
+        customers: {
+            add: () => openCustomerModal(),
+            edit: (id) => openCustomerModal(id),
+            delete: (id) => deleteCustomer(id),
+            'view-progress': (id) => openCustomerProgressModal(id),
+            'sell-package': (id) => openSellPackageModal(id)
+        },
+        staff: {
+            add: () => openStaffModal(),
+            edit: (id) => openStaffModal(id),
+            delete: (id) => deleteStaff(id)
+        },
+        resources: {
+            add: () => openResourceModal(),
+            edit: (id) => openResourceModal(id),
+            delete: (id) => deleteResource(id)
+        },
+        expenses: {
+            add: () => openExpenseModal(),
+            edit: (id) => openExpenseModal(id),
+            delete: (id) => deleteExpense(id)
+        }
+    };
+
+    if (viewActions[view] && viewActions[view][action]) {
+        event.preventDefault();
+        viewActions[view][action](id);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     runDataMigration();
     loadState();
@@ -196,6 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
             resetProgressForm(customerId);
         }
     });
+
+    document.body.addEventListener('click', handleListClick);
 });
 
 function runDataMigration() {
@@ -287,6 +378,8 @@ function runDataMigration() {
 }
 
 function addDummyData() {
+    // Only add dummy data if there are no customers. This is a good heuristic for a fresh install.
+    // The previous check for any data would fail if the migration added a default service.
     if (state.customers && state.customers.length > 0) {
         return;
     }
@@ -665,10 +758,19 @@ function deletePackage(id) {
 }
 
 function resetPackageForm() {
-    document.getElementById('package-form').reset();
-    document.getElementById('package-id').value = '';
-    document.getElementById('package-submit-btn').textContent = 'Add';
-    document.getElementById('package-cancel-btn').classList.add('hidden');
+    const idInput = document.getElementById('package-id');
+    const nameInput = document.getElementById('package-name');
+    const hoursInput = document.getElementById('package-hours');
+    const priceInput = document.getElementById('package-price');
+    const submitButton = document.getElementById('package-submit-btn');
+    const cancelButton = document.getElementById('package-cancel-btn');
+
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (hoursInput) hoursInput.value = '';
+    if (priceInput) priceInput.value = '';
+    if (submitButton) submitButton.textContent = 'Add';
+    if (cancelButton) cancelButton.classList.add('hidden');
 }
 
 
@@ -683,7 +785,7 @@ function renderServicesView() {
         { header: 'Duration', render: item => `${item.duration_minutes} min`, class: 'hidden md:table-cell' },
         { header: 'Price', render: item => `€${(item.base_price || 0).toFixed(2)}`, class: 'hidden md:table-cell' }
     ];
-    renderGenericListView('services', 'Services', columns, state.services, 'openServiceModal', 'openServiceModal', 'deleteService', 'Service');
+    renderGenericListView('services', 'Services', columns, state.services, 'Service');
 }
 
 function renderCustomersView() {
@@ -692,7 +794,7 @@ function renderCustomersView() {
         { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
         { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
     ];
-    renderGenericListView('customers', 'Customers', columns, state.customers, 'openCustomerModal', 'openCustomerModal', 'deleteCustomer', 'Customer');
+    renderGenericListView('customers', 'Customers', columns, state.customers, 'Customer');
 }
 
 function renderStaffView() {
@@ -701,7 +803,7 @@ function renderStaffView() {
         { header: 'Email', render: item => item.email || '-', class: 'hidden sm:table-cell' },
         { header: 'Phone', render: item => item.phone || '-', class: 'hidden md:table-cell' }
     ];
-    renderGenericListView('staff', 'Staff', columns, state.staff, 'openStaffModal', 'openStaffModal', 'deleteStaff', 'Staff Member');
+    renderGenericListView('staff', 'Staff', columns, state.staff, 'Staff Member');
 }
 
 function renderResourcesView() {
@@ -710,13 +812,13 @@ function renderResourcesView() {
         { header: 'Type', render: item => item.resource_type, class: 'hidden sm:table-cell' },
         { header: 'Capacity', render: item => item.capacity || 'N/A', class: 'hidden md:table-cell' }
     ];
-    renderGenericListView('resources', 'Resources', columns, state.resources, 'openResourceModal', 'openResourceModal', 'deleteResource', 'Resource');
+    renderGenericListView('resources', 'Resources', columns, state.resources, 'Resource');
 }
 
-function renderGenericListView(viewName, title, columns, data, addFn, editFn, deleteFn, singularTitle) {
+function renderGenericListView(viewName, title, columns, data, singularTitle) {
     const container = document.getElementById(`${viewName}-view`);
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
-    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button onclick="${addFn}()" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
+    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button data-view="${sanitizeHTML(viewName)}" data-action="add" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
     const listContainer = document.getElementById(`${viewName}-list-table`);
     const dataArray = normalizeCollection(data);
     if (dataArray.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
@@ -732,12 +834,12 @@ function renderGenericListView(viewName, title, columns, data, addFn, editFn, de
                 <button class="ml-4 font-medium text-red-400 cursor-not-allowed" disabled>Delete</button>
             `;
         } else {
-            actionsHtml = `<button onclick="${editFn}('${item.id}')" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
+            actionsHtml = `<button data-view="${sanitizeHTML(viewName)}" data-action="edit" data-id="${sanitizeHTML(item.id)}" class="font-medium text-indigo-600 hover:text-indigo-900">Edit</button>`;
             if (viewName === 'customers') {
-                actionsHtml += ` <button onclick="openCustomerProgressModal('${item.id}')" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
-                actionsHtml += ` <button onclick="openSellPackageModal('${item.id}')" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
+                actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="view-progress" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-green-600 hover:text-green-900">View Progress</button>`;
+                actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="sell-package" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-blue-600 hover:text-blue-900">Sell Package</button>`;
             }
-            actionsHtml += ` <button onclick="${deleteFn}('${item.id}')" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
+            actionsHtml += ` <button data-view="${sanitizeHTML(viewName)}" data-action="delete" data-id="${sanitizeHTML(item.id)}" class="ml-4 font-medium text-red-600 hover:text-red-900">Delete</button>`;
         }
 
         return `<tr>${columns.map(c => `<td class="${c.class || ''}">${sanitizeHTML(c.render(item))}</td>`).join('')}<td class="text-right">${actionsHtml}</td></tr>`;
@@ -752,7 +854,7 @@ function renderExpensesView() {
         { header: 'Description', render: item => item.description, class: 'w-3/6' },
         { header: 'Amount', render: item => `€${item.amount.toFixed(2)}`, class: 'text-right w-1/6' }
     ];
-    renderGenericListView('expenses', 'Expenses', columns, state.expenses, 'openExpenseModal', 'openExpenseModal', 'deleteExpense', 'Expense');
+    renderGenericListView('expenses', 'Expenses', columns, state.expenses, 'Expense');
 }
 
 function openExpenseModal(id = null) {
@@ -1086,9 +1188,10 @@ function updateAiProviderFields(provider) {
 
     // Clear the dropdown and show only the currently saved model.
     // This prompts the user to fetch the full list if they want to change it.
-    modelSelect.innerHTML = '';
+    modelSelect.innerHTML = ''; // Clear existing options safely
     if (savedModel) {
-        modelSelect.innerHTML = `<option value="${savedModel}">${savedModel}</option>`;
+        // Use new Option() to prevent XSS from a crafted model ID in localStorage
+        modelSelect.add(new Option(savedModel, savedModel));
     }
     modelSelect.value = savedModel;
 
@@ -1120,7 +1223,13 @@ function renderCalendarHeader() {
     if (currentView === 'day') title = currentDate.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     else if (currentView === 'week') {
         const weekStart = new Date(currentDate);
-        const dayOfWeek = weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1;
+        const firstDaySetting = state.settings.firstDayOfWeek || 'monday';
+        let dayOfWeek;
+        if (firstDaySetting === 'sunday') {
+            dayOfWeek = weekStart.getDay(); // Sunday is 0
+        } else {
+            dayOfWeek = weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1; // Monday is 0
+        }
         weekStart.setDate(weekStart.getDate() - dayOfWeek);
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
@@ -1504,6 +1613,8 @@ function renderBillingView() {
             <div id="billing-content"></div>
         </div>
     `;
+    container.removeEventListener('click', handleBillingClick); // Clean up previous listener
+    container.addEventListener('click', handleBillingClick);
     renderBillingContent();
 }
 
@@ -1566,9 +1677,9 @@ function renderBillingContent() {
     let paginationControls = '';
     if (totalPages > 1) {
         paginationControls = `<div class="flex justify-center items-center gap-2 mt-4">
-            <button onclick="handleBillingPageChange(${billingCurrentPage - 1})" class="${btnSecondary}" ${billingCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
-            ${Array.from({length: totalPages}, (_, i) => `<button onclick="handleBillingPageChange(${i+1})" class="${i+1 === billingCurrentPage ? btnPrimary : btnSecondary}">${i+1}</button>`).join('')}
-            <button onclick="handleBillingPageChange(${billingCurrentPage + 1})" class="${btnSecondary}" ${billingCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
+            <button data-action="prev-page" class="${btnSecondary}" ${billingCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
+            ${Array.from({length: totalPages}, (_, i) => `<button data-action="go-to-page" data-page="${i + 1}" class="${i+1 === billingCurrentPage ? btnPrimary : btnSecondary}">${i+1}</button>`).join('')}
+            <button data-action="next-page" class="${btnSecondary}" ${billingCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
         </div>`;
     }
 
@@ -1580,8 +1691,8 @@ function renderBillingContent() {
                     <thead><tr><th>Customer</th><th class="text-center">Bookings</th><th class="text-right">Total Billed</th><th class="text-right">Total Paid</th><th class="text-right">Outstanding</th></tr></thead>
                     <tbody class="divide-y divide-gray-200">
                         ${paginatedSummaries.map(s => `
-                            <tr class="hover:bg-gray-50 cursor-pointer" onclick="handleBillingCustomerChange('${s.id}')">
-                                <td class="font-medium">${s.name}</td>
+                            <tr class="hover:bg-gray-50 cursor-pointer" data-action="select-customer" data-id="${sanitizeHTML(s.id)}">
+                                <td class="font-medium">${sanitizeHTML(s.name)}</td>
                                 <td class="text-center">${s.bookingCount}</td>
                                 <td class="text-right">€${s.totalBilled.toFixed(2)}</td>
                                 <td class="text-right text-green-600">€${s.totalPaid.toFixed(2)}</td>
@@ -1640,7 +1751,7 @@ function renderDetailedBillingBreakdown(customerId) {
             statusHtml = `<td><span class="font-semibold ${statusColor}">${item.status}</span></td>`;
 
             if (item.status === 'Completed' && item.paymentStatus !== 'Paid' && item.paymentStatus !== 'Paid (Credit)') {
-                checkboxHtml = `<td><input type="checkbox" class="bulk-payment-checkbox" data-booking-id="${item.id}" data-fee="${item.fee || 0}" onchange="updateBulkPaymentTotal('${customerId}')"></td>`;
+                checkboxHtml = `<td><input type="checkbox" class="bulk-payment-checkbox" data-booking-id="${sanitizeHTML(item.id)}" data-fee="${item.fee || 0}"></td>`;
             }
         } else if (item.type === 'package_sale') {
             rowClass = 'bg-blue-50';
@@ -1663,7 +1774,7 @@ function renderDetailedBillingBreakdown(customerId) {
         <div class="bg-white rounded-lg shadow p-4 mt-8">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Detailed Statement for ${sanitizeHTML(customer.name)}</h3>
-                <button onclick="clearSelectedCustomer()" class="text-sm text-gray-500 hover:text-gray-800">&times; Close</button>
+                <button data-action="clear-selection" class="text-sm text-gray-500 hover:text-gray-800">&times; Close</button>
             </div>
             <div class="overflow-x-auto mt-4">
                 <table class="min-w-full">
@@ -1678,11 +1789,11 @@ function renderDetailedBillingBreakdown(customerId) {
             </div>
             <div id="bulk-payment-bar" class="hidden mt-6 p-4 bg-gray-100 rounded-lg flex justify-between items-center">
                 <span class="font-semibold">Total for selected: <span id="bulk-payment-total" class="text-xl">€0.00</span></span>
-                <button id="bulk-payment-btn" onclick="recordBulkPayment('${customerId}')" class="${btnGreen}">Record Payment for Selected</button>
+                <button id="bulk-payment-btn" data-action="record-bulk-payment" data-customer-id="${sanitizeHTML(customerId)}" class="${btnGreen}">Record Payment for Selected</button>
             </div>
             <div class="mt-6 flex gap-2">
-                <button onclick="openInvoiceModal('${customerId}')" class="${btnPurple}">Generate Invoice</button>
-                <button onclick="copyPaymentReminder('${customerId}')" class="${btnSecondary}">Copy Payment Reminder</button>
+                <button data-action="generate-invoice" data-customer-id="${sanitizeHTML(customerId)}" class="${btnPurple}">Generate Invoice</button>
+                <button data-action="copy-reminder" data-customer-id="${sanitizeHTML(customerId)}" class="${btnSecondary}">Copy Payment Reminder</button>
             </div>
         </div>
     `;
@@ -2086,18 +2197,23 @@ function saveCustomer(event) {
         }
     }
 
+    const isNewCustomer = !customerId;
+
     const customerData = {
         id: customerId || `customer_${generateUUID()}`,
         name: customerName,
         email: email,
         phone: document.getElementById('customer-phone').value,
-        creation_date: new Date().toISOString(),
         driving_school_details: {
             license_number: document.getElementById('customer-license').value,
             progress_notes: customerId ? (state.customers.find(c => c.id === customerId)?.driving_school_details?.progress_notes || []) : [],
             lesson_credits: lessonCredits
         }
     };
+
+    if (isNewCustomer) {
+        customerData.creation_date = new Date().toISOString();
+    }
 
     if (customerId) {
         const index = state.customers.findIndex(c => c.id === customerId);
@@ -2591,14 +2707,24 @@ function openServiceModal(id = null) {
             document.getElementById('service-duration').value = service.duration_minutes;
             document.getElementById('service-base-price').value = service.base_price;
 
+            // Restore the correct pricing model radio button
+            if (service.pricing_rules?.type === 'tiered') {
+                document.querySelector('input[name="pricing-type"][value="tiered"]').checked = true;
+            } else {
+                document.querySelector('input[name="pricing-type"][value="fixed"]').checked = true;
+            }
+
+            // Populate tiers if they exist, regardless of service type
+            if (service.pricing_rules?.type === 'tiered' && service.pricing_rules.tiers) {
+                service.pricing_rules.tiers.forEach(tier => addPricingTier(tier));
+            }
+
+            // Populate TOUR specific fields
             if (service.service_type === 'TOUR') {
                 document.getElementById('service-description').value = service.description || '';
                 document.getElementById('service-photos').value = (service.photo_gallery || []).join('\n');
                 document.getElementById('service-capacity-min').value = service.capacity?.min || 1;
                 document.getElementById('service-capacity-max').value = service.capacity?.max || 10;
-                if (service.pricing_rules?.type === 'tiered' && service.pricing_rules.tiers) {
-                    service.pricing_rules.tiers.forEach(tier => addPricingTier(tier));
-                }
             }
         }
     } else {
@@ -2863,7 +2989,12 @@ function openSellPackageModal(customerId) {
     document.getElementById('sell-package-customer-id').value = customerId;
 
     const selectEl = document.getElementById('sell-package-select');
-    selectEl.innerHTML = packages.map(p => `<option value="${p.id}">${p.name} (${p.hours} hrs for €${p.price.toFixed(2)})</option>`).join('');
+    selectEl.innerHTML = ''; // Clear existing options safely
+    packages.forEach(p => {
+        const displayText = `${p.name} (${p.hours} hrs for €${p.price.toFixed(2)})`;
+        const option = new Option(displayText, p.id);
+        selectEl.add(option);
+    });
 
     updatePackageSummary();
 
@@ -2896,6 +3027,11 @@ function confirmSale(event) {
     if (customerIndex === -1 || !pkg) {
         showDialog({ title: 'Error', message: 'Could not find customer or package. Please try again.', buttons: [{ text: 'OK', class: btnPrimary }] });
         return;
+    }
+
+    // Ensure driving_school_details exists before trying to access it
+    if (!state.customers[customerIndex].driving_school_details) {
+        state.customers[customerIndex].driving_school_details = {};
     }
 
     const details = state.customers[customerIndex].driving_school_details;
@@ -2994,9 +3130,10 @@ function toggleVehicleFields() {
 function openBlockDatesModal() {
     const modal = document.getElementById('block-dates-modal');
     const staffSelect = document.getElementById('block-staff');
-    staffSelect.innerHTML = '<option value="all">All Staff (School Holiday)</option>';
+    staffSelect.innerHTML = ''; // Clear existing options
+    staffSelect.add(new Option('All Staff (School Holiday)', 'all'));
     state.staff.forEach(i => {
-        staffSelect.innerHTML += `<option value="${i.id}">${i.name}</option>`;
+        staffSelect.add(new Option(i.name, i.id));
     });
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
@@ -3257,7 +3394,16 @@ function populateTimeSelects() {
 
 function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
     const select = document.getElementById(elementId);
-    select.innerHTML = includeAll ? '<option value="all">-- All --</option>' : '<option value="">-- Select --</option>';
+    select.innerHTML = ''; // Clear existing options safely
+
+    // Add the placeholder option
+    if (includeAll) {
+        select.add(new Option('-- All --', 'all'));
+    } else {
+        select.add(new Option('-- Select --', ''));
+    }
+
+    // Populate with data
     data.forEach(item => {
         let displayText = item[nameKey] || item.name;
         if (!displayText && item.make && item.model) {
@@ -3266,7 +3412,9 @@ function populateSelect(elementId, data, includeAll = false, nameKey = 'name') {
         if ((elementId.includes('customer') || elementId.includes('student')) && item.phone) {
             displayText += ` (${item.phone})`;
         }
-        select.innerHTML += `<option value="${item.id}">${displayText || item.id}</option>`;
+        // Create a new Option element. The text is automatically sanitized.
+        const option = new Option(displayText || item.id, item.id);
+        select.add(option);
     });
 }
 
@@ -4244,7 +4392,7 @@ async function fetchAiModels() {
             break;
         case 'openrouter':
             apiUrl = 'https://openrouter.ai/api/v1/models';
-            headers = {};
+            headers = { 'Authorization': `Bearer ${apiKey}` };
             break;
         default:
             showDialog({ title: 'Error', message: `Model fetching is not supported for provider: ${provider}`, buttons: [{ text: 'OK', class: btnPrimary }] });
@@ -4278,7 +4426,12 @@ async function fetchAiModels() {
             modelIds.unshift(savedModel);
         }
 
-        modelSelect.innerHTML = modelIds.map(id => `<option value="${id}">${id}</option>`).join('');
+        modelSelect.innerHTML = ''; // Clear existing options
+        modelIds.forEach(id => {
+            // Use new Option() to prevent XSS from crafted model IDs
+            modelSelect.add(new Option(id, id));
+        });
+
         modelSelect.value = savedModel;
         showToast(`Successfully fetched ${modelIds.length} models for ${provider}.`);
 
