@@ -4728,12 +4728,18 @@ async function handleGenerateFeedback() {
 
             generateBtn.disabled = true;
             generateBtn.textContent = 'Generating...';
-            const feedback = await callAI(prompt);
-            if (feedback) {
-                notesTextarea.value = feedback;
+            try {
+                const feedback = await callAI(prompt);
+                if (feedback) {
+                    notesTextarea.value = feedback;
+                }
+            } catch (error) {
+                console.error("Error generating feedback:", error);
+                // The 'finally' block will still run, so we don't need to reset the button here.
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = '✨ Generate Feedback';
             }
-            generateBtn.disabled = false;
-            generateBtn.textContent = '✨ Generate Feedback';
 }
 
 async function handleAnalyzeBilling() {
