@@ -89,10 +89,10 @@
         .faq-answer {
             max-height: 0;
             overflow: hidden;
+            padding-top: 0;
             transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
         }
         .faq-item.open .faq-answer {
-            max-height: 200px; /* Adjust as needed */
             padding-top: 1rem;
         }
         .faq-item.open .faq-arrow {
@@ -108,7 +108,7 @@
     <!-- Header & Navigation -->
     <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
         <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="#" class="flex items-center space-x-3">
+            <a href="#home" class="flex items-center space-x-3">
                 <svg class="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                     <path d="M50 10 L90 40 L80 90 L50 75 L20 90 L10 40 Z" class="fill-irish-green"/>
                     <g transform="scale(0.8) translate(12, 8)">
@@ -134,12 +134,12 @@
             <div class="hidden lg:block">
                 <a href="#contact" class="btn btn-primary">Book Now</a>
             </div>
-            <button id="mobile-menu-button" class="lg:hidden">
+            <button id="mobile-menu-button" class="lg:hidden" aria-expanded="false" aria-controls="mobile-menu" aria-label="Toggle navigation menu">
                 <svg class="w-6 h-6 text-main" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
             </button>
         </nav>
         <!-- Mobile Menu -->
-        <div id="mobile-menu" class="hidden lg:hidden px-6 pb-4">
+        <div id="mobile-menu" class="hidden lg:hidden px-6 pb-4" aria-hidden="true">
             <a href="#home" class="block py-2 font-semibold text-brand-blue">Home</a>
             <a href="#about" class="block py-2 font-semibold text-secondary">About Us</a>
             <a href="#services" class="block py-2 font-semibold text-secondary">Services & Pricing</a>
@@ -221,7 +221,7 @@
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Introduction to traffic rules</li>
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Progress assessment</li>
                             </ul>
-                            <a href="#" class="btn btn-primary w-full text-center">Book Standard Lesson</a>
+                            <a href="#contact" class="btn btn-primary w-full text-center">Book Standard Lesson</a>
                         </div>
                         <!-- Intermediate Lesson -->
                         <div class="card p-8 bg-green-50/30">
@@ -236,7 +236,7 @@
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Hazard perception development</li>
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Route planning and navigation</li>
                             </ul>
-                            <a href="#" class="btn bg-brand-green text-white w-full text-center hover:bg-green-600">Book Intermediate Lesson</a>
+                            <a href="#contact" class="btn bg-brand-green text-white w-full text-center hover:bg-green-600">Book Intermediate Lesson</a>
                         </div>
                         <!-- Advanced Lesson -->
                         <div class="card p-8 bg-purple-50/30">
@@ -251,7 +251,7 @@
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Emergency procedures</li>
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Final test preparation</li>
                             </ul>
-                            <a href="#" class="btn bg-brand-purple text-white w-full text-center hover:bg-purple-700">Book Advanced Lesson</a>
+                            <a href="#contact" class="btn bg-brand-purple text-white w-full text-center hover:bg-purple-700">Book Advanced Lesson</a>
                         </div>
                     </div>
                 </div>
@@ -272,12 +272,12 @@
                             <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><b>Confidence Building:</b> Reduce test anxiety and boost your self-assurance.</li>
                             <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><b>Action Plan:</b> Clear recommendations for final preparation.</li>
                         </ul>
-                        <a href="#" class="btn bg-brand-green text-white hover:bg-green-600">Book Mock Test →</a>
+                        <a href="#contact" class="btn bg-brand-green text-white hover:bg-green-600">Book Mock Test →</a>
                     </div>
                     <div class="md:w-1/2 relative">
                         <div class="bg-white p-3 rounded-3xl shadow-2xl">
                             <!-- UPDATED IMAGE -->
-                            <img src="https://readytopass.campaign.gov.uk/wp-content/uploads/sites/151/2023/01/mock-driving-test-marking-sheet-620x300.jpg" alt="Instructor giving feedback to a student in a car" class="rounded-2xl w-full h-full object-cover">
+                            <img src="https://readytopass.campaign.gov.uk/wp-content/uploads/sites/151/2023/01/mock-driving-test-marking-sheet-620x300.jpg" alt="Instructor giving feedback to a student in a car" class="rounded-2xl w-full h-full object-cover" loading="lazy">
                             <div class="absolute -bottom-4 -left-4 bg-white p-3 rounded-2xl shadow-lg flex items-center space-x-2">
                                 <div class="text-yellow-400">★★★★★</div>
                                 <div>
@@ -307,7 +307,7 @@
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Progress tracking</li>
                                 <li class="flex items-center text-secondary"><svg class="w-5 h-5 mr-3 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Theory test support</li>
                             </ul>
-                            <a href="#" class="btn btn-primary w-full text-center">Choose 5-Hour Package</a>
+                            <a href="#contact" class="btn btn-primary w-full text-center">Choose 5-Hour Package</a>
                         </div>
                         <!-- 10-Hour Package -->
                         <div class="card p-8 w-full md:w-2/5 lg:w-1/3 relative package-gradient text-white">
@@ -324,7 +324,7 @@
                                 <li class="flex items-center"><svg class="w-5 h-5 mr-3 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Theory and hazard perception support</li>
                                 <li class="flex items-center"><svg class="w-5 h-5 mr-3 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Mock test included</li>
                             </ul>
-                            <a href="#" class="btn bg-white text-main w-full text-center hover:bg-slate-200">Choose 10-Hour Package</a>
+                            <a href="#contact" class="btn bg-white text-main w-full text-center hover:bg-slate-200">Choose 10-Hour Package</a>
                         </div>
                     </div>
                 </div>
@@ -401,9 +401,9 @@
                         </ul>
                     </div>
                     <div class="md:w-1/2 relative">
-                        <img src="https://www.firstcar.co.uk/wp-content/uploads/2019/05/20170704133714395.jpg" class="rounded-2xl shadow-xl w-full" alt="City street in Dublin">
+                        <img src="https://www.firstcar.co.uk/wp-content/uploads/2019/05/20170704133714395.jpg" class="rounded-2xl shadow-xl w-full" alt="City street in Dublin" loading="lazy">
                         <div class="absolute -bottom-4 -right-4 bg-white p-4 rounded-2xl shadow-lg flex items-center space-x-3">
-                            <img src="https://placehold.co/40x40/3B82F6/FFFFFF?text=RSA" alt="RSA Approved Logo" class="rounded-full">
+                            <img src="https://placehold.co/40x40/3B82F6/FFFFFF?text=RSA" alt="RSA Approved Logo" class="rounded-full" loading="lazy">
                             <div>
                                 <p class="font-bold text-main">RSA Approved</p>
                                 <p class="text-sm text-secondary">Certified Instructors</p>
@@ -420,7 +420,7 @@
                         <!-- Instructor 1 -->
                         <div class="card text-left overflow-hidden">
                             <div class="relative">
-                                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=1887&auto=format&fit=crop" alt="Ray Ryan, Head Instructor" class="w-full h-64 object-cover">
+                                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=1887&auto=format&fit=crop" alt="Ray Ryan, Head Instructor" class="w-full h-64 object-cover" loading="lazy">
                                 <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold">15+ Years</div>
                             </div>
                             <div class="p-6">
@@ -438,7 +438,7 @@
                         <!-- Instructor 2 -->
                         <div class="card text-left overflow-hidden">
                              <div class="relative">
-                                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=1888&auto=format&fit=crop" alt="Lisa O'Brien, Senior Instructor" class="w-full h-64 object-cover">
+                                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=1888&auto=format&fit=crop" alt="Lisa O'Brien, Senior Instructor" class="w-full h-64 object-cover" loading="lazy">
                                 <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold">8+ Years</div>
                             </div>
                             <div class="p-6">
@@ -456,7 +456,7 @@
                         <!-- Instructor 3 -->
                         <div class="card text-left overflow-hidden">
                              <div class="relative">
-                                <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=1887&auto=format&fit=crop" alt="David Kelly, Instructor" class="w-full h-64 object-cover">
+                                <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=1887&auto=format&fit=crop" alt="David Kelly, Instructor" class="w-full h-64 object-cover" loading="lazy">
                                 <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold">5+ Years</div>
                             </div>
                             <div class="p-6">
@@ -532,7 +532,7 @@
                     <div class="card p-8">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center space-x-4">
-                                <img src="https://images.unsplash.com/photo-1597589827317-4c6d6e0a90bd?q=80&w=2080&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Sarah Murphy">
+                                <img src="https://images.unsplash.com/photo-1597589827317-4c6d6e0a90bd?q=80&w=2080&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Sarah Murphy" loading="lazy">
                                 <div>
                                     <h4 class="font-bold text-lg text-main">Sarah Murphy</h4>
                                     <p class="text-sm text-secondary">Age 19 • Dublin 4</p>
@@ -549,7 +549,7 @@
                     <div class="card p-8">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center space-x-4">
-                                <img src="https://images.unsplash.com/photo-1542909168-82c3e7fdca5c?q=80&w=2080&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Michael O'Connor">
+                                <img src="https://images.unsplash.com/photo-1542909168-82c3e7fdca5c?q=80&w=2080&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Michael O'Connor" loading="lazy">
                                 <div>
                                     <h4 class="font-bold text-lg text-main">Michael O'Connor</h4>
                                     <p class="text-sm text-secondary">Age 23 • Dublin 2</p>
@@ -566,7 +566,7 @@
                     <div class="card p-8">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center space-x-4">
-                                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1887&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Emma Walsh">
+                                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1887&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="Emma Walsh" loading="lazy">
                                 <div>
                                     <h4 class="font-bold text-lg text-main">Emma Walsh</h4>
                                     <p class="text-sm text-secondary">Age 20 • Dublin 6</p>
@@ -583,7 +583,7 @@
                     <div class="card p-8">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center space-x-4">
-                                <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1887&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="James Byrne">
+                                <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1887&auto=format&fit=crop" class="w-14 h-14 rounded-full object-cover" alt="James Byrne" loading="lazy">
                                 <div>
                                     <h4 class="font-bold text-lg text-main">James Byrne</h4>
                                     <p class="text-sm text-secondary">Age 18 • Dublin 8</p>
@@ -840,21 +840,21 @@
                             <form action="https://formspree.io/f/your_unique_id" method="POST">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                     <div>
-                                        <label class="font-semibold text-sm">Full Name *</label>
-                                        <input type="text" name="name" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
+                                        <label for="booking-name" class="font-semibold text-sm">Full Name *</label>
+                                        <input id="booking-name" type="text" name="name" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
                                     </div>
                                     <div>
-                                        <label class="font-semibold text-sm">Phone Number *</label>
-                                        <input type="tel" name="phone" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
+                                        <label for="booking-phone" class="font-semibold text-sm">Phone Number *</label>
+                                        <input id="booking-phone" type="tel" name="phone" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
                                     </div>
                                 </div>
                                 <div class="mt-6">
-                                    <label class="font-semibold text-sm">Email Address *</label>
-                                    <input type="email" name="email" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
+                                    <label for="booking-email" class="font-semibold text-sm">Email Address *</label>
+                                    <input id="booking-email" type="email" name="email" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" required>
                                 </div>
                                 <div class="mt-6">
-                                    <label class="font-semibold text-sm">Service of Interest *</label>
-                                    <select name="service_interest" class="w-full mt-2 p-3 border border-gray-200 rounded-lg bg-white" required>
+                                    <label for="booking-service" class="font-semibold text-sm">Service of Interest *</label>
+                                    <select id="booking-service" name="service_interest" class="w-full mt-2 p-3 border border-gray-200 rounded-lg bg-white" required>
                                         <option>Standard Driving Lesson</option>
                                         <option>Mock Driving Test</option>
                                         <option>5-Hour Package</option>
@@ -863,8 +863,8 @@
                                     </select>
                                 </div>
                                 <div class="mt-6">
-                                    <label class="font-semibold text-sm">Message (Optional)</label>
-                                    <textarea name="message" rows="4" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" placeholder="Tell us about your experience level, preferred times, or any specific requirements."></textarea>
+                                    <label for="booking-message" class="font-semibold text-sm">Message (Optional)</label>
+                                    <textarea id="booking-message" name="message" rows="4" class="w-full mt-2 p-3 border border-gray-200 rounded-lg" placeholder="Tell us about your experience level, preferred times, or any specific requirements."></textarea>
                                 </div>
                                 <div class="mt-6">
                                     <button type="submit" class="btn btn-primary w-full">Send Booking Inquiry</button>
@@ -884,7 +884,7 @@
         <div class="container mx-auto px-6 py-16">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <a href="#" class="flex items-center space-x-3 mb-4">
+                    <a href="#home" class="flex items-center space-x-3 mb-4">
                         <!-- UPDATED FOOTER LOGO -->
                         <svg class="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                             <path d="M50 10 L90 40 L80 90 L50 75 L20 90 L10 40 Z" fill="#FFFFFF"/>
@@ -930,26 +930,79 @@
         // Mobile Menu Toggle
         const mobileMenuButton = document.getElementById('mobile-menu-button');
         const mobileMenu = document.getElementById('mobile-menu');
-        mobileMenuButton.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
-        });
+
+        if (mobileMenuButton && mobileMenu) {
+            const mobileMenuLinks = mobileMenu.querySelectorAll('a');
+
+            const closeMobileMenu = () => {
+                mobileMenu.classList.add('hidden');
+                mobileMenuButton.setAttribute('aria-expanded', 'false');
+                mobileMenu.setAttribute('aria-hidden', 'true');
+            };
+
+            mobileMenuButton.addEventListener('click', () => {
+                const isHidden = mobileMenu.classList.toggle('hidden');
+                mobileMenuButton.setAttribute('aria-expanded', String(!isHidden));
+                mobileMenu.setAttribute('aria-hidden', String(isHidden));
+            });
+
+            mobileMenuLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    closeMobileMenu();
+                });
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !mobileMenu.classList.contains('hidden')) {
+                    closeMobileMenu();
+                    mobileMenuButton.focus();
+                }
+            });
+        }
 
         // FAQ Accordion
         const faqItems = document.querySelectorAll('.faq-item');
-        faqItems.forEach(item => {
-            const question = item.querySelector('.faq-question');
-            question.addEventListener('click', () => {
-                const isOpen = item.classList.contains('open');
-                // Close all items
-                faqItems.forEach(otherItem => {
-                    otherItem.classList.remove('open');
+        if (faqItems.length) {
+            faqItems.forEach((item, index) => {
+                const question = item.querySelector('.faq-question');
+                const answer = item.querySelector('.faq-answer');
+                const answerId = `faq-answer-${index}`;
+
+                answer.id = answerId;
+                question.setAttribute('aria-controls', answerId);
+                question.setAttribute('aria-expanded', 'false');
+                answer.setAttribute('aria-hidden', 'true');
+
+                question.addEventListener('click', () => {
+                    const isOpen = item.classList.contains('open');
+
+                    faqItems.forEach(otherItem => {
+                        const otherQuestion = otherItem.querySelector('.faq-question');
+                        const otherAnswer = otherItem.querySelector('.faq-answer');
+
+                        otherItem.classList.remove('open');
+                        otherAnswer.style.maxHeight = null;
+                        otherAnswer.style.paddingTop = '0';
+                        otherQuestion.setAttribute('aria-expanded', 'false');
+                        otherAnswer.setAttribute('aria-hidden', 'true');
+                    });
+
+                    if (!isOpen) {
+                        item.classList.add('open');
+                        answer.style.maxHeight = `${answer.scrollHeight}px`;
+                        answer.style.paddingTop = '1rem';
+                        question.setAttribute('aria-expanded', 'true');
+                        answer.setAttribute('aria-hidden', 'false');
+                    }
                 });
-                // If it wasn't open, open it
-                if (!isOpen) {
-                    item.classList.add('open');
-                }
             });
-        });
+
+            window.addEventListener('resize', () => {
+                document.querySelectorAll('.faq-item.open .faq-answer').forEach(answer => {
+                    answer.style.maxHeight = `${answer.scrollHeight}px`;
+                });
+            });
+        }
 
         // Active Nav Link on Scroll
         const sections = document.querySelectorAll('section[id]');
