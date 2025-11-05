@@ -40,25 +40,36 @@
 - Timeline with hourly slots
 - Column assignment for overlapping bookings
 
+### Phase 3.2: Billing Module (COMPLETE)
+- ✅ `src/modules/billing.js` (521 lines) - Customer billing, payments, and export
+
+**Includes:**
+- Main billing view with summary cards
+- Customer billing table with pagination
+- Detailed customer statements
+- Bulk payment recording
+- Payment reminder generation
+- Export to CSV/Excel
+- Memoized calculations for performance
+- Event delegation for all interactions
+
 ---
 
 ## 🔄 IN PROGRESS
 
-### Phase 3.2: Billing Module (IN PROGRESS)
-**Target:** `src/modules/billing.js` (~300 lines)
+### Phase 3.3: Reports Module (IN PROGRESS)
+**Target:** `src/modules/reports.js` (~500 lines)
 
 **Functions to Extract:**
-- `renderBillingView()` - Main billing view
-- `renderBillingContent()` - Summary cards and customer table
-- `renderDetailedBillingBreakdown()` - Detailed statement for customer
-- `getCustomerSummaries()` - Calculate billing summaries (memoized)
-- `handleBillingClick()` - Event delegation for billing interactions
-- `updateBulkPaymentTotal()` - Calculate selected bookings total
-- `recordBulkPayment()` - Record payment for multiple bookings
-- Invoice generation functions
-- Export to Excel functionality
+- `renderReportsView()` - Main reports view
+- `getReportsData()` - Extract all report data
+- `generateCharts()` - Create Chart.js visualizations
+- `getTourAnalytics()` - Tour-specific metrics
+- Income, expense, and service popularity reports
+- Staff performance and resource utilization charts
+- Peak hours analysis
 
-**Current Status:** Identified all functions, ready to extract
+**Current Status:** Ready to extract
 
 ---
 
@@ -111,10 +122,10 @@
 
 | Metric | Current Status |
 |--------|----------------|
-| **Lines Extracted** | ~2,564 / 7,518 (34%) |
-| **Modules Created** | 7 files |
+| **Lines Extracted** | ~3,085 / 7,518 (41%) |
+| **Modules Created** | 8 files |
 | **Core Modules** | 5/5 (100%) ✅ |
-| **Feature Modules** | 1/8 (12.5%) |
+| **Feature Modules** | 2/8 (25%) ✅ |
 | **Storage Reduction** | 70% (with compression) |
 | **Type Safety** | Full TypeScript definitions |
 
@@ -141,10 +152,11 @@
 
 ## 💾 GIT STATUS
 
-**Commits:** 9 commits total
+**Commits:** 11 commits total
 - Phase 2.1: 6 commits (core modules + main.js)
 - Phase 3.1: 1 commit (calendar module)
-- Documentation: 2 commits
+- Phase 3.2: 1 commit (billing module)
+- Documentation: 3 commits
 
 **Branch Status:** All commits pushed to remote
 **Working Tree:** Clean
@@ -162,4 +174,4 @@
 
 ---
 
-*Last updated: Phase 3.1 Complete - Calendar Module Extracted*
+*Last updated: Phase 3.2 Complete - Billing Module Extracted (41% of codebase modularized)*
