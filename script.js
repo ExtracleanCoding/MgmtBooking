@@ -399,6 +399,147 @@ function changePage(viewName, page) {
     refreshCurrentView();
 }
 
+// ==============================================
+// ACCESSIBILITY: FOCUS MANAGEMENT & KEYBOARD NAV
+// ==============================================
+
+/**
+ * Store the last focused element before opening a modal
+ */
+let lastFocusedElement = null;
+
+/**
+ * Trap focus within a modal dialog
+ * @param {HTMLElement} modalElement - The modal container
+ */
+function trapFocus(modalElement) {
+    const focusableElements = modalElement.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+
+    // Focus first element
+    setTimeout(() => firstFocusable?.focus(), 100);
+
+    // Handle tab navigation
+    function handleTabKey(e) {
+        if (e.key !== 'Tab') return;
+
+        if (e.shiftKey) {
+            // Shift + Tab
+            if (document.activeElement === firstFocusable) {
+                e.preventDefault();
+                lastFocusable?.focus();
+            }
+        } else {
+            // Tab
+            if (document.activeElement === lastFocusable) {
+                e.preventDefault();
+                firstFocusable?.focus();
+            }
+        }
+    }
+
+    modalElement.addEventListener('keydown', handleTabKey);
+
+    // Store cleanup function
+    modalElement._cleanupFocusTrap = () => {
+        modalElement.removeEventListener('keydown', handleTabKey);
+    };
+}
+
+/**
+ * Announce message to screen readers
+ * @param {string} message - Message to announce
+ * @param {string} priority - 'polite' (default) or 'assertive'
+ */
+function announceToScreenReader(message, priority = 'polite') {
+    const announcement = document.createElement('div');
+    announcement.setAttribute('role', 'status');
+    announcement.setAttribute('aria-live', priority);
+    announcement.setAttribute('aria-atomic', 'true');
+    announcement.className = 'sr-only';
+    announcement.textContent = message;
+
+    document.body.appendChild(announcement);
+
+    // Remove after announcement
+    setTimeout(() => {
+        document.body.removeChild(announcement);
+    }, 1000);
+}
+
+/**
+ * Save focus before opening modal
+ */
+function saveFocusBeforeModal() {
+    lastFocusedElement = document.activeElement;
+}
+
+/**
+ * Restore focus after closing modal
+ */
+function restoreFocusAfterModal() {
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+        lastFocusedElement = null;
+    }
+}
+
+/**
+ * Enhanced keyboard navigation
+ * Global keyboard shortcuts
+ */
+function setupGlobalKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Escape key - close modals
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal-backdrop:not(.hidden)');
+            if (openModal) {
+                const modalId = openModal.id;
+                // Find the appropriate close function
+                const closeFunction = window[`close${modalId.split('-')[0].charAt(0).toUpperCase() + modalId.split('-')[0].slice(1)}Modal`];
+                if (typeof closeFunction === 'function') {
+                    closeFunction();
+                }
+            }
+        }
+
+        // Ctrl+F or Cmd+F - Focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                searchInput.focus();
+                announceToScreenReader('Search focused. Start typing to search.');
+            }
+        }
+
+        // Ctrl+K or Cmd+K - Focus search (alternative)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                searchInput.focus();
+                announceToScreenReader('Search focused. Start typing to search.');
+            }
+        }
+    });
+}
+
+/**
+ * Make pagination controls keyboard accessible
+ */
+function enhancePaginationAccessibility() {
+    // Allow Enter key to activate pagination buttons
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.hasAttribute('onclick')) {
+            e.target.click();
+        }
+    });
+}
+
 // FEATURE: SMS Reminder Automation (Phase 1 Improvement)
 function checkAndScheduleSMSReminders() {
     // Check for bookings in the next 24-48 hours that need reminders
@@ -1144,8 +1285,14 @@ function executeGlobalSearch(searchTerm) {
             </div>
         `;
         resultsContainer.classList.remove('hidden');
+        // ACCESSIBILITY: Announce no results to screen readers
+        announceToScreenReader(`No results found for ${searchTerm}`);
         return;
     }
+
+    // ACCESSIBILITY: Announce result count to screen readers
+    const totalResults = results.customers.length + results.bookings.length + results.staff.length;
+    announceToScreenReader(`Found ${totalResults} results: ${results.customers.length} customers, ${results.bookings.length} bookings, ${results.staff.length} staff members`);
 
     let html = '';
 
@@ -1705,6 +1852,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initMobileOptimizations();
     // FEATURE: Phase 3 - Check for payment reminders on app load
     checkOverduePaymentReminders();
+
+    // ACCESSIBILITY: Initialize accessibility features
+    setupGlobalKeyboardShortcuts();
+    enhancePaginationAccessibility();
+    announceToScreenReader('Application loaded. Use Tab to navigate, Escape to close dialogs, and Ctrl+F to search.');
 
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Enter' || event.key === ' ') {
