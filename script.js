@@ -1303,6 +1303,26 @@ let dragStartY = 0;
 let selectionBox = null;
 let activeCharts = [];
 
+/**
+ * OPTIMIZATION: Destroy all active Chart.js instances
+ * Prevents memory leaks by properly cleaning up chart objects
+ * Call this before creating new charts or switching views
+ */
+function destroyAllCharts() {
+    if (activeCharts && activeCharts.length > 0) {
+        activeCharts.forEach(chart => {
+            try {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            } catch (error) {
+                console.warn('Failed to destroy chart:', error);
+            }
+        });
+        activeCharts = [];
+    }
+}
+
 // --- SKILLS CONFIGURATION ---
 const skillLevels = {
     standard: {
@@ -1620,6 +1640,10 @@ window.addEventListener('beforeunload', function(e) {
         saveState(); // Force immediate save
         console.log('Forced save on page unload to prevent data loss');
     }
+
+    // OPTIMIZATION: Clean up all charts before page unload
+    destroyAllCharts();
+
     // No need to show confirmation dialog - save is automatic
 });
 
@@ -1832,9 +1856,8 @@ function renderApp() {
 function showView(viewName, date = null) {
     if (date) currentDate = new Date(date);
 
-    // Destroy any existing charts to prevent memory leaks
-    activeCharts.forEach(chart => chart.destroy());
-    activeCharts = [];
+    // OPTIMIZATION: Destroy any existing charts to prevent memory leaks
+    destroyAllCharts();
 
     const calendarViews = ['day', 'week', 'month'];
     const isCalendarView = calendarViews.includes(viewName);
@@ -7163,7 +7186,11 @@ function getTourAnalytics() {
     };
 }
 
+// OPTIMIZED: Added proper cleanup to prevent memory leaks
 function generateCharts() {
+    // OPTIMIZATION: Destroy all existing charts before creating new ones
+    destroyAllCharts();
+
     const { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport } = getReportsData();
 
     const allMonths = [...new Set([...Object.keys(incomeByMonth), ...Object.keys(expensesByMonth)])].sort();
@@ -7171,13 +7198,18 @@ function generateCharts() {
     const incomeData = allMonths.map(my => incomeByMonth[my] || 0);
     const expenseData = allMonths.map(my => expensesByMonth[my] || 0);
 
+    /**
+     * OPTIMIZATION: Helper to create charts and track them for cleanup
+     * All charts are added to activeCharts array for memory management
+     * Charts are destroyed when switching views or refreshing reports
+     */
     const createChart = (canvasId, type, data, options = {}) => {
         const canvas = document.getElementById(canvasId);
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 const chart = new Chart(ctx, { type, data, options });
-                activeCharts.push(chart);
+                activeCharts.push(chart); // Track for cleanup
             } else {
                 console.error(`Failed to get 2D context for canvas with id: ${canvasId}`);
             }
