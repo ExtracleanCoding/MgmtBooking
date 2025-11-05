@@ -9,16 +9,21 @@
  * @created 2025-09-11
  */
 
-function sanitizeHTML(value) {
-    if (value === null || value === undefined) return '';
-    const str = String(value);
-    return str.replace(/[&<>"']/g, tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[tag] || tag));
+// NOTE: sanitizeHTML is now provided by security.js
+// Keeping this as a fallback in case security.js fails to load
+if (typeof sanitizeHTML === 'undefined') {
+    function sanitizeHTML(value) {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return str.replace(/[&<>"'\/]/g, tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '/': '&#x2F;'
+        }[tag] || tag));
+    }
 }
 
 function normalizeCollection(collection) {
@@ -54,11 +59,1037 @@ function parseYYYYMMDD(dateString) {
     return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
+// BUGFIX: Safe date formatting helper to prevent null reference errors
+function safeDateFormat(dateString, options = { day: '2-digit', month: 'short', year: 'numeric' }) {
+    const parsed = parseYYYYMMDD(dateString);
+    if (!parsed || isNaN(parsed.getTime())) {
+        console.warn('Invalid date format:', dateString);
+        return 'Invalid Date';
+    }
+    return parsed.toLocaleDateString('en-GB', options);
+}
+
 function generateUUID() {
+    // Use crypto API if available (better randomness, prevents collisions)
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        // UUID v4 format using crypto.getRandomValues
+        return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+    }
+
+    // Fallback to Math.random() for older browsers
+    console.warn('crypto.getRandomValues not available, using Math.random() fallback');
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
+}
+
+// FEATURE: SMS Reminder Automation (Phase 1 Improvement)
+function checkAndScheduleSMSReminders() {
+    // Check for bookings in the next 24-48 hours that need reminders
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowStr = toLocalDateString(tomorrow);
+
+    const upcomingBookings = state.bookings.filter(b =>
+        b.date === tomorrowStr &&
+        b.status === 'Scheduled' &&
+        !b.reminderSent
+    );
+
+    if (upcomingBookings.length > 0 && state.settings.autoRemindersEnabled) {
+        console.log(`Found ${upcomingBookings.length} bookings needing reminders for tomorrow`);
+        upcomingBookings.forEach(booking => {
+            prepareSMSReminder(booking);
+        });
+    }
+
+    return upcomingBookings.length;
+}
+
+function prepareSMSReminder(booking) {
+    const customer = state.customers.find(c => c.id === booking.customerId);
+    const staff = state.staff.find(s => s.id === booking.staffId);
+
+    if (!customer || !customer.phone) {
+        console.warn(`Cannot send reminder for booking ${booking.id}: customer has no phone number`);
+        return;
+    }
+
+    const message = formatSMSMessage(booking, customer, staff);
+
+    // In a real implementation, this would call an SMS API (Twilio, etc.)
+    // For now, we log it and show a notification
+    console.log(`📱 SMS Reminder Ready:`, {
+        to: customer.phone,
+        message: message,
+        bookingId: booking.id
+    });
+
+    // Mark reminder as "sent" (in real implementation, only mark after successful send)
+    booking.reminderSent = true;
+    booking.reminderSentAt = new Date().toISOString();
+    saveState();
+
+    return { customer, message };
+}
+
+function formatSMSMessage(booking, customer, staff) {
+    const template = state.settings.smsTemplate || 'Hi [CustomerFirstName], this is a friendly reminder for your driving lesson on [LessonDate] at [LessonTime]. See you then! From [InstructorName].';
+
+    const firstName = customer.name.split(' ')[0];
+    const bookingDate = safeDateFormat(booking.date, { day: '2-digit', month: 'short', year: 'numeric' });
+    const instructorName = staff ? staff.name : (state.settings.instructorName || 'Ray Ryan');
+
+    return template
+        .replace('[CustomerFirstName]', firstName)
+        .replace('[LessonDate]', bookingDate)
+        .replace('[LessonTime]', booking.startTime)
+        .replace('[InstructorName]', instructorName);
+}
+
+function manualSendReminders() {
+    const count = checkAndScheduleSMSReminders();
+    if (count > 0) {
+        showToast(`Prepared ${count} SMS reminder(s) for tomorrow's bookings`);
+    } else {
+        showToast('No bookings need reminders at this time');
+    }
+}
+
+function toggleAutoReminders(enabled) {
+    state.settings.autoRemindersEnabled = enabled;
+    saveState();
+    showToast(enabled ? 'Auto-reminders enabled' : 'Auto-reminders disabled');
+}
+
+// FEATURE: Phase 2 - Email Notifications
+function sendBookingConfirmationEmail(bookingId) {
+    const booking = state.bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const customer = state.customers.find(c => c.id === booking.customerId);
+    const staff = state.staff.find(s => s.id === booking.staffId);
+    const service = state.services.find(s => s.id === booking.serviceId);
+
+    if (!customer || !customer.email) {
+        console.warn(`Cannot send email to customer ${booking.customerId}: no email address`);
+        return;
+    }
+
+    const emailData = {
+        to: customer.email,
+        subject: `Booking Confirmation - ${service?.service_name || 'Lesson'}`,
+        body: formatBookingConfirmationEmail(booking, customer, staff, service)
+    };
+
+    prepareEmail(emailData, 'confirmation', bookingId);
+}
+
+function sendBookingReminderEmail(bookingId) {
+    const booking = state.bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const customer = state.customers.find(c => c.id === booking.customerId);
+    const staff = state.staff.find(s => s.id === booking.staffId);
+    const service = state.services.find(s => s.id === booking.serviceId);
+
+    if (!customer || !customer.email) return;
+
+    const emailData = {
+        to: customer.email,
+        subject: `Reminder: Lesson Tomorrow at ${booking.startTime}`,
+        body: formatReminderEmail(booking, customer, staff, service)
+    };
+
+    prepareEmail(emailData, 'reminder', bookingId);
+}
+
+function sendPaymentReceiptEmail(transactionId) {
+    const transaction = state.transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    const customer = state.customers.find(c => c.id === transaction.customerId);
+    if (!customer || !customer.email) return;
+
+    const emailData = {
+        to: customer.email,
+        subject: `Payment Receipt - €${transaction.amount.toFixed(2)}`,
+        body: formatPaymentReceiptEmail(transaction, customer)
+    };
+
+    prepareEmail(emailData, 'receipt', transactionId);
+}
+
+function prepareEmail(emailData, type, referenceId) {
+    // In production, this would call an email service API (EmailJS, SendGrid, etc.)
+    // For now, log to console
+    console.log(`📧 Email Ready [${type}]:`, emailData);
+
+    // Store in a pending emails queue (could be used for batch sending)
+    if (!state.settings.pendingEmails) {
+        state.settings.pendingEmails = [];
+    }
+
+    state.settings.pendingEmails.push({
+        id: `email_${generateUUID()}`,
+        type,
+        referenceId,
+        emailData,
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+    });
+
+    saveState();
+    return emailData;
+}
+
+function formatBookingConfirmationEmail(booking, customer, staff, service) {
+    const bookingDate = safeDateFormat(booking.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const instructorName = staff?.name || state.settings.instructorName || 'Ray Ryan';
+
+    return `
+Hi ${customer.name},
+
+Your booking has been confirmed!
+
+**Booking Details:**
+- Service: ${service?.service_name || 'Driving Lesson'}
+- Date: ${bookingDate}
+- Time: ${booking.startTime} - ${booking.endTime}
+- Instructor: ${instructorName}
+${booking.pickup ? `- Pickup Location: ${booking.pickup}` : ''}
+
+**Payment Status:** ${booking.paymentStatus}
+${booking.paymentStatus === 'Unpaid' ? `\nAmount Due: €${booking.fee.toFixed(2)}` : ''}
+
+If you need to reschedule or have any questions, please contact us.
+
+Thank you!
+${instructorName}
+${state.settings.instructorAddress || ''}
+`.trim();
+}
+
+function formatReminderEmail(booking, customer, staff, service) {
+    const bookingDate = safeDateFormat(booking.date, { weekday: 'long', day: 'numeric', month: 'long' });
+    const instructorName = staff?.name || state.settings.instructorName || 'Ray Ryan';
+
+    return `
+Hi ${customer.name},
+
+This is a friendly reminder about your lesson tomorrow:
+
+**Tomorrow's Lesson:**
+- ${bookingDate} at ${booking.startTime}
+- ${service?.service_name || 'Driving Lesson'}
+- Instructor: ${instructorName}
+${booking.pickup ? `- Pickup Location: ${booking.pickup}` : ''}
+
+See you tomorrow!
+${instructorName}
+`.trim();
+}
+
+function formatPaymentReceiptEmail(transaction, customer) {
+    const transactionDate = safeDateFormat(transaction.date, { day: 'numeric', month: 'long', year: 'numeric' });
+
+    return `
+Hi ${customer.name},
+
+Thank you for your payment!
+
+**Payment Receipt:**
+- Date: ${transactionDate}
+- Amount: €${transaction.amount.toFixed(2)}
+- Description: ${transaction.description}
+- Transaction ID: ${transaction.id}
+
+${state.settings.paymentDetails || ''}
+
+Thank you for your business!
+${state.settings.instructorName || 'Ray Ryan'}
+`.trim();
+}
+
+function checkAndSendEmailReminders() {
+    // Check for bookings needing email reminders (similar to SMS reminders)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = toLocalDateString(tomorrow);
+
+    const upcomingBookings = state.bookings.filter(b =>
+        b.date === tomorrowStr &&
+        b.status === 'Scheduled' &&
+        !b.emailReminderSent
+    );
+
+    if (upcomingBookings.length > 0 && state.settings.autoEmailRemindersEnabled) {
+        upcomingBookings.forEach(booking => {
+            sendBookingReminderEmail(booking.id);
+            booking.emailReminderSent = true;
+        });
+        saveState();
+        console.log(`Sent ${upcomingBookings.length} email reminder(s)`);
+    }
+
+    return upcomingBookings.length;
+}
+
+function manualSendEmailReminders() {
+    const count = checkAndSendEmailReminders();
+    if (count > 0) {
+        showToast(`Prepared ${count} email reminder(s) for tomorrow's bookings`);
+    } else {
+        showToast('No bookings need email reminders at this time');
+    }
+}
+
+function toggleAutoEmailReminders(enabled) {
+    state.settings.autoEmailRemindersEnabled = enabled;
+    saveState();
+    showToast(enabled ? 'Auto-email reminders enabled' : 'Auto-email reminders disabled');
+}
+
+function testBookingConfirmationEmail() {
+    // Find a test booking (prefer a future booking)
+    const today = toLocalDateString(new Date());
+    const testBooking = state.bookings.find(b => b.date >= today && b.status !== 'Cancelled') || state.bookings[0];
+
+    if (!testBooking) {
+        showToast('No bookings available to test. Create a booking first.');
+        return;
+    }
+
+    sendBookingConfirmationEmail(testBooking.id);
+    showToast('Test email prepared! Check browser console (F12) to see the email content.');
+}
+
+// FEATURE: Phase 3 - Mobile Optimization
+let touchStartX = 0;
+let touchEndX = 0;
+let touchStartY = 0;
+let touchEndY = 0;
+
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+}
+
+function initMobileOptimizations() {
+    // Add mobile class to body
+    if (isMobileDevice()) {
+        document.body.classList.add('mobile-device');
+    }
+
+    // Add touch event listeners for swipe gestures on calendar
+    const calendarContainer = document.getElementById('main-content');
+    if (calendarContainer) {
+        calendarContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+        calendarContainer.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
+
+    // Update mobile navigation visibility
+    updateMobileNav();
+    window.addEventListener('resize', updateMobileNav);
+}
+
+function handleTouchStart(event) {
+    touchStartX = event.changedTouches[0].screenX;
+    touchStartY = event.changedTouches[0].screenY;
+}
+
+function handleTouchEnd(event) {
+    touchEndX = event.changedTouches[0].screenX;
+    touchEndY = event.changedTouches[0].screenY;
+    handleSwipeGesture();
+}
+
+function handleSwipeGesture() {
+    const swipeThreshold = 50;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    // Only process horizontal swipes (ignore vertical scrolling)
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+        // Only allow swipes in calendar views
+        if (['day', 'week', 'month'].includes(currentView)) {
+            if (deltaX > 0) {
+                // Swipe right - go to previous period
+                navigatePrevious();
+            } else {
+                // Swipe left - go to next period
+                navigateNext();
+            }
+        }
+    }
+}
+
+function updateMobileNav() {
+    const mobileNav = document.getElementById('mobile-bottom-nav');
+    if (mobileNav) {
+        mobileNav.style.display = isMobileDevice() ? 'flex' : 'none';
+    }
+}
+
+function openMobileMenu() {
+    const menu = document.getElementById('mobile-menu-modal');
+    if (menu) {
+        menu.classList.remove('hidden');
+    }
+}
+
+function closeMobileMenu() {
+    const menu = document.getElementById('mobile-menu-modal');
+    if (menu) {
+        menu.classList.add('hidden');
+    }
+}
+
+// FEATURE: Phase 3 - Payment Reminders
+function checkOverduePaymentReminders() {
+    if (!state.settings.autoPaymentRemindersEnabled) {
+        return 0;
+    }
+
+    const today = new Date();
+    const reminders = [];
+
+    // Find all unpaid bookings
+    const unpaidBookings = state.bookings.filter(b =>
+        b.paymentStatus === 'Unpaid' &&
+        b.status === 'Completed' &&
+        !b.paymentReminderSent
+    );
+
+    unpaidBookings.forEach(booking => {
+        const bookingDate = parseYYYYMMDD(booking.date);
+        const daysSinceBooking = Math.floor((today - bookingDate) / (1000 * 60 * 60 * 24));
+
+        // Check reminder thresholds (7, 14, 30 days)
+        const reminderDays = state.settings.paymentReminderDays || [7, 14, 30];
+
+        if (reminderDays.includes(daysSinceBooking)) {
+            sendPaymentReminder(booking.id, daysSinceBooking);
+            reminders.push(booking);
+        }
+    });
+
+    if (reminders.length > 0) {
+        console.log(`💰 Sent ${reminders.length} payment reminder(s)`);
+    }
+
+    return reminders.length;
+}
+
+function sendPaymentReminder(bookingId, daysOverdue) {
+    const booking = state.bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const customer = state.customers.find(c => c.id === booking.customerId);
+    if (!customer) return;
+
+    const reminderMessage = formatPaymentReminderMessage(booking, customer, daysOverdue);
+
+    // Prepare email reminder
+    if (customer.email) {
+        prepareEmail({
+            to: customer.email,
+            subject: `Payment Reminder - ${daysOverdue} days overdue`,
+            body: reminderMessage
+        }, 'payment_reminder', booking.id);
+    }
+
+    // Log for now (can integrate with SMS later)
+    console.log(`💰 Payment Reminder [${daysOverdue} days]:`, {
+        customer: customer.name,
+        amount: `€${booking.fee.toFixed(2)}`,
+        bookingDate: booking.date,
+        message: reminderMessage
+    });
+
+    // Mark as reminded
+    booking.paymentReminderSent = true;
+    booking.paymentReminderSentAt = new Date().toISOString();
+    booking.paymentReminderCount = (booking.paymentReminderCount || 0) + 1;
+    saveState();
+}
+
+function formatPaymentReminderMessage(booking, customer, daysOverdue) {
+    const instructorName = state.settings.instructorName || 'Ray Ryan';
+    const bookingDate = safeDateFormat(booking.date, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+    const service = state.services.find(s => s.id === booking.serviceId);
+
+    let urgencyMessage = '';
+    if (daysOverdue >= 30) {
+        urgencyMessage = 'This payment is now significantly overdue. Please contact us urgently to arrange payment.';
+    } else if (daysOverdue >= 14) {
+        urgencyMessage = 'This payment is overdue. Please arrange payment at your earliest convenience.';
+    } else {
+        urgencyMessage = 'This is a friendly reminder that payment is due.';
+    }
+
+    return `
+Hi ${customer.name},
+
+${urgencyMessage}
+
+**Payment Details:**
+- Service: ${service?.service_name || 'Driving Lesson'}
+- Date: ${bookingDate}
+- Amount Due: €${booking.fee.toFixed(2)}
+- Days Overdue: ${daysOverdue}
+
+${state.settings.paymentDetails || 'Please contact us to arrange payment.'}
+
+If you have already made this payment, please disregard this message.
+
+Thank you,
+${instructorName}
+${state.settings.instructorAddress || ''}
+`.trim();
+}
+
+function manualSendPaymentReminders() {
+    const count = checkOverduePaymentReminders();
+    if (count > 0) {
+        showToast(`Sent ${count} payment reminder(s)`);
+    } else {
+        showToast('No overdue payments need reminders');
+    }
+}
+
+function toggleAutoPaymentReminders(enabled) {
+    state.settings.autoPaymentRemindersEnabled = enabled;
+    saveState();
+    showToast(enabled ? 'Auto-payment reminders enabled' : 'Auto-payment reminders disabled');
+}
+
+function updatePaymentReminderDays() {
+    const days7 = document.getElementById('reminder-7-days')?.checked;
+    const days14 = document.getElementById('reminder-14-days')?.checked;
+    const days30 = document.getElementById('reminder-30-days')?.checked;
+
+    const reminderDays = [];
+    if (days7) reminderDays.push(7);
+    if (days14) reminderDays.push(14);
+    if (days30) reminderDays.push(30);
+
+    state.settings.paymentReminderDays = reminderDays.length > 0 ? reminderDays : [7, 14, 30];
+    saveState();
+    showToast('Payment reminder settings updated');
+}
+
+// FEATURE: Phase 3 - Invoice Customization
+function updateInvoiceSetting(field, value) {
+    state.settings[field] = value;
+    saveState();
+    showToast('Invoice settings updated');
+}
+
+// FEATURE: Phase 3 - Income Analytics
+function calculateIncomeAnalytics() {
+    const completedBookings = state.bookings.filter(b => b.status === 'Completed');
+    const paidBookings = completedBookings.filter(b => b.paymentStatus === 'Paid');
+
+    // Total revenue
+    const totalRevenue = paidBookings.reduce((sum, b) => sum + (b.fee || 0), 0);
+
+    // Calculate hours worked
+    const totalMinutesWorked = completedBookings.reduce((sum, b) => {
+        const startMinutes = timeToMinutes(b.startTime);
+        const endMinutes = timeToMinutes(b.endTime);
+        return sum + (endMinutes - startMinutes);
+    }, 0);
+    const totalHoursWorked = totalMinutesWorked / 60;
+
+    // Income per hour
+    const incomePerHour = totalHoursWorked > 0 ? totalRevenue / totalHoursWorked : 0;
+
+    // Busiest days analysis
+    const dayCount = {};
+    completedBookings.forEach(b => {
+        const day = new Date(b.date).toLocaleDateString('en-US', { weekday: 'long' });
+        dayCount[day] = (dayCount[day] || 0) + 1;
+    });
+    const busiestDay = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0] || ['N/A', 0];
+
+    // Busiest hours analysis
+    const hourCount = {};
+    completedBookings.forEach(b => {
+        const hour = parseInt(b.startTime.split(':')[0]);
+        hourCount[hour] = (hourCount[hour] || 0) + 1;
+    });
+    const busiestHour = Object.entries(hourCount).sort((a, b) => b[1] - a[1])[0];
+    const busiestTime = busiestHour ? `${String(busiestHour[0]).padStart(2, '0')}:00` : 'N/A';
+
+    // Most profitable service
+    const serviceRevenue = {};
+    paidBookings.forEach(b => {
+        const serviceName = state.services.find(s => s.id === b.serviceId)?.service_name || 'Unknown';
+        serviceRevenue[serviceName] = (serviceRevenue[serviceName] || 0) + (b.fee || 0);
+    });
+    const mostProfitableService = Object.entries(serviceRevenue).sort((a, b) => b[1] - a[1])[0] || ['N/A', 0];
+
+    // Revenue per student
+    const customerRevenue = {};
+    paidBookings.forEach(b => {
+        customerRevenue[b.customerId] = (customerRevenue[b.customerId] || 0) + (b.fee || 0);
+    });
+    const averageRevenuePerStudent = Object.keys(customerRevenue).length > 0
+        ? totalRevenue / Object.keys(customerRevenue).length
+        : 0;
+    const topCustomer = Object.entries(customerRevenue).sort((a, b) => b[1] - a[1])[0];
+    const topCustomerName = topCustomer ? state.customers.find(c => c.id === topCustomer[0])?.name : 'N/A';
+
+    // Utilization rate (based on typical 8-hour workday, 5 days/week)
+    // BUGFIX: Find earliest booking date instead of using first array element
+    let daysSinceStart = 1;
+    if (state.bookings.length > 0) {
+        const earliestBookingDate = state.bookings.reduce((earliest, booking) => {
+            const bookingDate = new Date(booking.date);
+            return bookingDate < earliest ? bookingDate : earliest;
+        }, new Date());
+        daysSinceStart = Math.max((new Date() - earliestBookingDate) / (1000 * 60 * 60 * 24), 1);
+    }
+    const workdaysCount = Math.ceil(daysSinceStart / 7) * 5; // Approximate workdays
+    const availableHours = workdaysCount * 8;
+    const utilizationRate = availableHours > 0 ? (totalHoursWorked / availableHours) * 100 : 0;
+
+    return {
+        totalRevenue,
+        totalHoursWorked: totalHoursWorked.toFixed(1),
+        incomePerHour,
+        busiestDay: busiestDay[0],
+        busiestDayCount: busiestDay[1],
+        busiestTime,
+        mostProfitableService: mostProfitableService[0],
+        mostProfitableServiceRevenue: mostProfitableService[1],
+        averageRevenuePerStudent,
+        topCustomerName,
+        topCustomerRevenue: topCustomer ? topCustomer[1] : 0,
+        utilizationRate: utilizationRate.toFixed(1),
+        totalBookings: completedBookings.length,
+        paidBookings: paidBookings.length
+    };
+}
+
+function renderIncomeAnalyticsDashboard() {
+    const analytics = calculateIncomeAnalytics();
+
+    return `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <!-- Income per Hour -->
+            <div class="bg-gradient-to-br from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Income per Hour</p>
+                        <p class="text-2xl font-bold text-green-700 mt-1">€${analytics.incomePerHour.toFixed(2)}</p>
+                        <p class="text-xs text-gray-500 mt-1">${analytics.totalHoursWorked} hours worked</p>
+                    </div>
+                    <div class="text-green-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Busiest Day -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Busiest Day</p>
+                        <p class="text-2xl font-bold text-blue-700 mt-1">${sanitizeHTML(analytics.busiestDay)}</p>
+                        <p class="text-xs text-gray-500 mt-1">${analytics.busiestDayCount} bookings</p>
+                    </div>
+                    <div class="text-blue-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Busiest Time -->
+            <div class="bg-gradient-to-br from-purple-50 to-pink-50 border-l-4 border-purple-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Busiest Time</p>
+                        <p class="text-2xl font-bold text-purple-700 mt-1">${sanitizeHTML(analytics.busiestTime)}</p>
+                        <p class="text-xs text-gray-500 mt-1">Most popular hour</p>
+                    </div>
+                    <div class="text-purple-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Most Profitable Service -->
+            <div class="bg-gradient-to-br from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Top Service</p>
+                        <p class="text-lg font-bold text-yellow-700 mt-1">${sanitizeHTML(analytics.mostProfitableService)}</p>
+                        <p class="text-xs text-gray-500 mt-1">€${analytics.mostProfitableServiceRevenue.toFixed(2)} total</p>
+                    </div>
+                    <div class="text-yellow-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Average Revenue per Student -->
+            <div class="bg-gradient-to-br from-cyan-50 to-teal-50 border-l-4 border-cyan-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Avg per Student</p>
+                        <p class="text-2xl font-bold text-cyan-700 mt-1">€${analytics.averageRevenuePerStudent.toFixed(2)}</p>
+                        <p class="text-xs text-gray-500 mt-1">Per active customer</p>
+                    </div>
+                    <div class="text-cyan-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utilization Rate -->
+            <div class="bg-gradient-to-br from-rose-50 to-red-50 border-l-4 border-rose-500 rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium">Utilization Rate</p>
+                        <p class="text-2xl font-bold text-rose-700 mt-1">${analytics.utilizationRate}%</p>
+                        <p class="text-xs text-gray-500 mt-1">Of available hours</p>
+                    </div>
+                    <div class="text-rose-600 opacity-50">
+                        <svg class="h-12 w-12" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Customer Insight -->
+        <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+            <h4 class="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                <svg class="h-5 w-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                </svg>
+                Business Insights
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div class="p-3 bg-gray-50 rounded">
+                    <p class="text-gray-600">Top Customer</p>
+                    <p class="font-semibold text-gray-900">${sanitizeHTML(analytics.topCustomerName)}</p>
+                    <p class="text-xs text-gray-500">€${analytics.topCustomerRevenue.toFixed(2)} lifetime value</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded">
+                    <p class="text-gray-600">Total Completed</p>
+                    <p class="font-semibold text-gray-900">${analytics.totalBookings} bookings</p>
+                    <p class="text-xs text-gray-500">${analytics.paidBookings} paid</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded">
+                    <p class="text-gray-600">Total Revenue</p>
+                    <p class="font-semibold text-gray-900">€${analytics.totalRevenue.toFixed(2)}</p>
+                    <p class="text-xs text-gray-500">All-time earnings</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// FEATURE: Phase 2 - Global Search/Filter
+function handleGlobalSearch(event) {
+    const searchTerm = event.target.value.trim().toLowerCase();
+    const resultsContainer = document.getElementById('search-results');
+
+    // Close on Escape
+    if (event.key === 'Escape') {
+        resultsContainer.classList.add('hidden');
+        event.target.blur();
+        return;
+    }
+
+    // Hide results if search is empty
+    if (searchTerm.length < 2) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+
+    // Search across customers, bookings, and staff
+    const results = performGlobalSearch(searchTerm);
+
+    // Display results
+    if (results.customers.length === 0 && results.bookings.length === 0 && results.staff.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="p-4 text-center text-gray-500">
+                No results found for "${sanitizeHTML(searchTerm)}"
+            </div>
+        `;
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    let html = '';
+
+    // Customers section
+    if (results.customers.length > 0) {
+        html += `
+            <div class="p-3 bg-gray-50 border-b">
+                <h3 class="text-xs font-semibold text-gray-600 uppercase">Customers (${results.customers.length})</h3>
+            </div>
+        `;
+        results.customers.slice(0, 5).forEach(customer => {
+            const credits = customer.driving_school_details?.lesson_credits || 0;
+            html += `
+                <div class="p-3 hover:bg-gray-50 cursor-pointer border-b" onclick="viewCustomerFromSearch('${customer.id}')">
+                    <div class="font-medium text-gray-900">${sanitizeHTML(customer.name)}</div>
+                    <div class="text-sm text-gray-500">${sanitizeHTML(customer.phone)} • ${credits.toFixed(1)} hrs credit</div>
+                </div>
+            `;
+        });
+        if (results.customers.length > 5) {
+            html += `<div class="p-2 text-xs text-center text-gray-500">+${results.customers.length - 5} more</div>`;
+        }
+    }
+
+    // Bookings section
+    if (results.bookings.length > 0) {
+        html += `
+            <div class="p-3 bg-gray-50 border-b">
+                <h3 class="text-xs font-semibold text-gray-600 uppercase">Bookings (${results.bookings.length})</h3>
+            </div>
+        `;
+        results.bookings.slice(0, 5).forEach(booking => {
+            const customer = state.customers.find(c => c.id === booking.customerId);
+            const staff = state.staff.find(s => s.id === booking.staffId);
+            const bookingDate = safeDateFormat(booking.date, { day: '2-digit', month: 'short' });
+            html += `
+                <div class="p-3 hover:bg-gray-50 cursor-pointer border-b" onclick="viewBookingFromSearch('${booking.date}', '${booking.id}')">
+                    <div class="font-medium text-gray-900">${bookingDate} at ${booking.startTime} - ${sanitizeHTML(customer?.name || 'Unknown')}</div>
+                    <div class="text-sm text-gray-500">${sanitizeHTML(staff?.name || 'Unknown')} • ${booking.status} • ${booking.paymentStatus}</div>
+                </div>
+            `;
+        });
+        if (results.bookings.length > 5) {
+            html += `<div class="p-2 text-xs text-center text-gray-500">+${results.bookings.length - 5} more</div>`;
+        }
+    }
+
+    // Staff section
+    if (results.staff.length > 0) {
+        html += `
+            <div class="p-3 bg-gray-50 border-b">
+                <h3 class="text-xs font-semibold text-gray-600 uppercase">Staff (${results.staff.length})</h3>
+            </div>
+        `;
+        results.staff.forEach(staff => {
+            html += `
+                <div class="p-3 hover:bg-gray-50 cursor-pointer border-b" onclick="showView('staff')">
+                    <div class="font-medium text-gray-900">${sanitizeHTML(staff.name)}</div>
+                    <div class="text-sm text-gray-500">${sanitizeHTML(staff.phone || 'No phone')}</div>
+                </div>
+            `;
+        });
+    }
+
+    resultsContainer.innerHTML = html;
+    resultsContainer.classList.remove('hidden');
+}
+
+function performGlobalSearch(searchTerm) {
+    const results = {
+        customers: [],
+        bookings: [],
+        staff: []
+    };
+
+    // Search customers by name, phone, email
+    results.customers = state.customers.filter(customer => {
+        return (customer.name && customer.name.toLowerCase().includes(searchTerm)) ||
+               (customer.phone && customer.phone.includes(searchTerm)) ||
+               (customer.email && customer.email.toLowerCase().includes(searchTerm));
+    });
+
+    // Search bookings by customer name, date, status
+    results.bookings = state.bookings.filter(booking => {
+        const customer = state.customers.find(c => c.id === booking.customerId);
+        const staff = state.staff.find(s => s.id === booking.staffId);
+        return (customer && customer.name.toLowerCase().includes(searchTerm)) ||
+               booking.date.includes(searchTerm) ||
+               booking.status.toLowerCase().includes(searchTerm) ||
+               (staff && staff.name.toLowerCase().includes(searchTerm));
+    });
+
+    // Search staff by name, phone
+    results.staff = state.staff.filter(staff => {
+        return staff.name.toLowerCase().includes(searchTerm) ||
+               (staff.phone && staff.phone.includes(searchTerm));
+    });
+
+    return results;
+}
+
+function viewCustomerFromSearch(customerId) {
+    // Hide search results
+    document.getElementById('search-results').classList.add('hidden');
+    document.getElementById('global-search').value = '';
+
+    // Navigate to customers view and open customer modal
+    showView('customers');
+    setTimeout(() => openCustomerModal(customerId), 300);
+}
+
+function viewBookingFromSearch(date, bookingId) {
+    // Hide search results
+    document.getElementById('search-results').classList.add('hidden');
+    document.getElementById('global-search').value = '';
+
+    // Navigate to that date in calendar
+    currentDate = parseYYYYMMDD(date);
+    showView('day');
+    setTimeout(() => openBookingModal(date, bookingId), 300);
+}
+
+// Close search results when clicking outside
+document.addEventListener('click', function(event) {
+    const searchContainer = document.getElementById('global-search');
+    const resultsContainer = document.getElementById('search-results');
+
+    if (searchContainer && resultsContainer &&
+        !searchContainer.contains(event.target) &&
+        !resultsContainer.contains(event.target)) {
+        resultsContainer.classList.add('hidden');
+    }
+});
+
+// FEATURE: Phase 2 - Google Calendar Sync / iCal Export
+function exportToGoogleCalendar(bookingId) {
+    const booking = state.bookings.find(b => b.id === bookingId);
+    if (!booking) {
+        showToast('Booking not found');
+        return;
+    }
+
+    const icsContent = generateICSFile([booking]);
+    downloadICSFile(icsContent, `booking-${booking.date}.ics`);
+    showToast('Calendar event exported! Import to Google Calendar');
+}
+
+function exportAllBookingsToCalendar() {
+    // Get all future and scheduled bookings
+    const today = toLocalDateString(new Date());
+    const futureBookings = state.bookings.filter(b =>
+        b.date >= today && b.status !== 'Cancelled'
+    );
+
+    if (futureBookings.length === 0) {
+        showToast('No upcoming bookings to export');
+        return;
+    }
+
+    const icsContent = generateICSFile(futureBookings);
+    downloadICSFile(icsContent, `all-bookings-${today}.ics`);
+    showToast(`Exported ${futureBookings.length} booking(s) to calendar file`);
+}
+
+function generateICSFile(bookings) {
+    // iCalendar format specification (RFC 5545)
+    let ics = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Ray Ryan Management System//Booking Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Ray Ryan Bookings
+X-WR-TIMEZONE:Europe/Dublin
+X-WR-CALDESC:Driving School Bookings
+`;
+
+    bookings.forEach(booking => {
+        const customer = state.customers.find(c => c.id === booking.customerId);
+        const staff = state.staff.find(s => s.id === booking.staffId);
+        const service = state.services.find(s => s.id === booking.serviceId);
+
+        // Parse date and times
+        const bookingDate = parseYYYYMMDD(booking.date);
+        const startDateTime = parseBookingDateTime(booking.date, booking.startTime);
+        const endDateTime = parseBookingDateTime(booking.date, booking.endTime);
+
+        // Format for iCal (YYYYMMDDTHHMMSS)
+        const startIcal = formatICalDateTime(startDateTime);
+        const endIcal = formatICalDateTime(endDateTime);
+        const createdIcal = formatICalDateTime(new Date());
+
+        // Build event details
+        const summary = `${service?.service_name || 'Lesson'} - ${customer?.name || 'Unknown'}`;
+        const description = `Status: ${booking.status}\\nPayment: ${booking.paymentStatus}\\nInstructor: ${staff?.name || 'Unknown'}\\nService: ${service?.service_name || 'Unknown'}\\nPickup: ${booking.pickup || 'Not specified'}`;
+        const location = booking.pickup || '';
+
+        ics += `BEGIN:VEVENT
+UID:${booking.id}@rayryanmanagement.com
+DTSTAMP:${createdIcal}
+DTSTART:${startIcal}
+DTEND:${endIcal}
+SUMMARY:${escapeICalText(summary)}
+DESCRIPTION:${escapeICalText(description)}
+LOCATION:${escapeICalText(location)}
+STATUS:${booking.status === 'Completed' ? 'CONFIRMED' : booking.status === 'Cancelled' ? 'CANCELLED' : 'TENTATIVE'}
+SEQUENCE:0
+END:VEVENT
+`;
+    });
+
+    ics += `END:VCALENDAR`;
+    return ics;
+}
+
+function parseBookingDateTime(dateStr, timeStr) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return new Date(year, month - 1, day, hours, minutes);
+}
+
+function formatICalDateTime(date) {
+    // Format: YYYYMMDDTHHMMSS
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+}
+
+function escapeICalText(text) {
+    if (!text) return '';
+    return text.replace(/\\/g, '\\\\')
+               .replace(/;/g, '\\;')
+               .replace(/,/g, '\\,')
+               .replace(/\n/g, '\\n');
+}
+
+function downloadICSFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
 }
 
 function checkVehicleCompliance() {
@@ -116,7 +1147,7 @@ let state = {
 
 // --- DYNAMIC STATE ---
 let currentView = 'month'; // The current calendar view ('month', 'week', 'day')
-let currentDate = new Date(); // The date the calendar is currently focused on. This will be updated on load.
+let currentDate = new Date('2025-11-01'); // The date the calendar is currently focused on. This will be updated on load.
 
 // --- CALENDAR CONFIGURATION ---
 const CALENDAR_START_HOUR = 7;
@@ -264,15 +1295,25 @@ function handleListClick(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // SECURITY: Setup CSP violation reporting
+    if (typeof setupCSPViolationReporting === 'function') {
+        setupCSPViolationReporting();
+    }
+
     runDataMigration();
     loadState();
     addDummyData();
 
     // --- Smart Date Initialization ---
-    if (state.bookings && state.bookings.length > 0) {
-        const firstBookingDate = new Date(state.bookings[0].date.replace(/-/g, '/'));
-        if (firstBookingDate > new Date()) {
-            currentDate = firstBookingDate;
+    // BUGFIX: Added safety checks for first booking date parsing
+    if (state.bookings && state.bookings.length > 0 && state.bookings[0].date) {
+        try {
+            const firstBookingDate = new Date(state.bookings[0].date.replace(/-/g, '/'));
+            if (firstBookingDate > new Date() && !isNaN(firstBookingDate.getTime())) {
+                currentDate = firstBookingDate;
+            }
+        } catch (e) {
+            console.warn('Failed to parse first booking date:', e);
         }
     }
     updateClock();
@@ -281,6 +1322,14 @@ document.addEventListener('DOMContentLoaded', () => {
     renderApp();
     checkVehicleCompliance();
     checkOverduePayments();
+    // FEATURE: Phase 1 - Check for SMS reminders on app load
+    checkAndScheduleSMSReminders();
+    // FEATURE: Phase 2 - Check for email reminders on app load
+    checkAndSendEmailReminders();
+    // FEATURE: Phase 3 - Initialize mobile optimizations
+    initMobileOptimizations();
+    // FEATURE: Phase 3 - Check for payment reminders on app load
+    checkOverduePaymentReminders();
 
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -288,6 +1337,125 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((target.tagName === 'DIV' || target.tagName === 'SPAN') && target.getAttribute('role') === 'button') {
                 event.preventDefault();
                 target.click();
+            }
+        }
+    });
+
+    // FEATURE: Keyboard Shortcuts for Quick Actions (Phase 1 Improvement)
+    document.addEventListener('keydown', function(event) {
+        // Check if user is typing in an input field
+        const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+
+        // ESC key - Close any open modal
+        if (event.key === 'Escape') {
+            const openModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+            if (openModals.length > 0) {
+                openModals.forEach(modal => {
+                    modal.classList.add('hidden');
+                });
+                return;
+            }
+        }
+
+        // Don't process shortcuts if user is typing (except Esc and Ctrl+S)
+        if (isTyping && event.key !== 'Escape' && !(event.ctrlKey && event.key === 's')) {
+            return;
+        }
+
+        // Ctrl+S - Quick save (force save state)
+        if (event.ctrlKey && event.key === 's') {
+            event.preventDefault();
+            saveState();
+            showToast('Data saved successfully!');
+            return;
+        }
+
+        // Ctrl+F or F3 - Focus search box (Phase 2 improvement)
+        if ((event.ctrlKey && event.key === 'f') || event.key === 'F3') {
+            event.preventDefault();
+            const searchBox = document.getElementById('global-search');
+            if (searchBox) {
+                searchBox.focus();
+                searchBox.select();
+            }
+            return;
+        }
+
+        // Single key shortcuts (only when not typing)
+        if (!isTyping) {
+            switch(event.key.toLowerCase()) {
+                case 'n':
+                    // N - New booking
+                    event.preventDefault();
+                    openBookingModal();
+                    break;
+
+                case 'c':
+                    // C - New customer
+                    event.preventDefault();
+                    openCustomerModal();
+                    break;
+
+                case 'b':
+                    // B - Go to Billing view
+                    event.preventDefault();
+                    showView('billing');
+                    break;
+
+                case 's':
+                    // S - Go to Summary/Dashboard view
+                    event.preventDefault();
+                    showView('summary');
+                    break;
+
+                case 'd':
+                    // D - Go to Day calendar view
+                    event.preventDefault();
+                    showView('day');
+                    break;
+
+                case 'w':
+                    // W - Go to Week calendar view
+                    event.preventDefault();
+                    showView('week');
+                    break;
+
+                case 'm':
+                    // M - Go to Month calendar view
+                    event.preventDefault();
+                    showView('month');
+                    break;
+
+                // Arrow keys - Navigate calendar
+                case 'arrowleft':
+                    if (['day', 'week', 'month'].includes(currentView)) {
+                        event.preventDefault();
+                        changeDate(currentView === 'day' ? 'day' : currentView === 'week' ? 'week' : 'month', -1);
+                    }
+                    break;
+
+                case 'arrowright':
+                    if (['day', 'week', 'month'].includes(currentView)) {
+                        event.preventDefault();
+                        changeDate(currentView === 'day' ? 'day' : currentView === 'week' ? 'week' : 'month', 1);
+                    }
+                    break;
+
+                case 't':
+                    // T - Go to Today in calendar
+                    if (['day', 'week', 'month'].includes(currentView)) {
+                        event.preventDefault();
+                        currentDate = new Date();
+                        refreshCurrentView();
+                        showToast('Jumped to today');
+                    }
+                    break;
+
+                case '?':
+                    // ? - Show keyboard shortcuts help
+                    event.preventDefault();
+                    showKeyboardShortcutsHelp();
+                    break;
             }
         }
     });
@@ -304,20 +1472,57 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('click', handleListClick);
 });
 
+// SAFETY: Force save before page unload to prevent data loss
+window.addEventListener('beforeunload', function(e) {
+    // If there's a pending debounced save, execute it immediately
+    if (saveStateTimeout) {
+        clearTimeout(saveStateTimeout);
+        saveStateTimeout = null;
+        saveState(); // Force immediate save
+        console.log('Forced save on page unload to prevent data loss');
+    }
+    // No need to show confirmation dialog - save is automatic
+});
+
 function runDataMigration() {
     const MIGRATION_KEY = 'migration_v3.0.0_complete';
     if (localStorage.getItem(MIGRATION_KEY)) {
         return;
     }
-    const oldStudents = JSON.parse(localStorage.getItem('students')) || [];
-    const oldInstructors = JSON.parse(localStorage.getItem('instructors')) || [];
-    const oldVehicles = JSON.parse(localStorage.getItem('vehicles')) || [];
-    const oldBookings = JSON.parse(localStorage.getItem('bookings')) || [];
-    let newCustomers = [];
-    let newStaff = [];
-    let newResources = [];
-    if (oldStudents.length > 0) {
-        newCustomers = oldStudents.map(student => ({
+
+    // Read any potential legacy data
+    const oldStudents = JSON.parse(localStorage.getItem('students') || '[]');
+    const oldInstructors = JSON.parse(localStorage.getItem('instructors') || '[]');
+    const oldVehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+
+    // Detect whether the existing bookings are legacy-shaped (use studentId/instructorId/vehicleId)
+    let legacyBookingsArray = [];
+    try {
+        const parsed = JSON.parse(localStorage.getItem('bookings') || '[]');
+        if (Array.isArray(parsed) && parsed.some(b => b && (b.studentId || b.instructorId || b.vehicleId))) {
+            legacyBookingsArray = parsed;
+        }
+    } catch (e) {
+        // If parsing fails, assume no legacy bookings
+        legacyBookingsArray = [];
+    }
+
+    const hasLegacyStudents = Array.isArray(oldStudents) && oldStudents.length > 0;
+    const hasLegacyInstructors = Array.isArray(oldInstructors) && oldInstructors.length > 0;
+    const hasLegacyVehicles = Array.isArray(oldVehicles) && oldVehicles.length > 0;
+    const hasLegacyBookings = legacyBookingsArray.length > 0;
+
+    // If there is no legacy data at all, mark migration complete and exit without touching current data.
+    if (!hasLegacyStudents && !hasLegacyInstructors && !hasLegacyVehicles && !hasLegacyBookings) {
+        localStorage.setItem(MIGRATION_KEY, 'true');
+        return;
+    }
+
+    let didMigrate = false;
+
+    // Migrate legacy students → customers (only if present)
+    if (hasLegacyStudents) {
+        const newCustomers = oldStudents.map(student => ({
             id: student.id,
             name: student.name,
             email: student.email,
@@ -329,9 +1534,13 @@ function runDataMigration() {
                 lesson_credits: student.lessonCredits || 0
             }
         }));
+        localStorage.setItem(DB_KEYS.CUSTOMERS, JSON.stringify(newCustomers));
+        didMigrate = true;
     }
-    if (oldInstructors.length > 0) {
-        newStaff = oldInstructors.map(instructor => ({
+
+    // Migrate legacy instructors → staff (only if present)
+    if (hasLegacyInstructors) {
+        const newStaff = oldInstructors.map(instructor => ({
             id: instructor.id,
             name: instructor.name,
             email: instructor.email,
@@ -339,9 +1548,13 @@ function runDataMigration() {
             staff_type: 'INSTRUCTOR',
             qualifications: {}
         }));
+        localStorage.setItem(DB_KEYS.STAFF, JSON.stringify(newStaff));
+        didMigrate = true;
     }
-    if (oldVehicles.length > 0) {
-        newResources = oldVehicles.map(vehicle => ({
+
+    // Migrate legacy vehicles → resources (only if present)
+    if (hasLegacyVehicles) {
+        const newResources = oldVehicles.map(vehicle => ({
             id: vehicle.id,
             resource_name: `${vehicle.make} ${vehicle.model}`,
             make: vehicle.make,
@@ -355,11 +1568,12 @@ function runDataMigration() {
                 service: vehicle.serviceDueDate
             }
         }));
+        localStorage.setItem(DB_KEYS.RESOURCES, JSON.stringify(newResources));
+        didMigrate = true;
     }
-    localStorage.setItem(DB_KEYS.CUSTOMERS, JSON.stringify(newCustomers));
-    localStorage.setItem(DB_KEYS.STAFF, JSON.stringify(newStaff));
-    localStorage.setItem(DB_KEYS.RESOURCES, JSON.stringify(newResources));
-    const services = JSON.parse(localStorage.getItem(DB_KEYS.SERVICES)) || [];
+
+    // Ensure at least one service exists only if none currently saved
+    const services = JSON.parse(localStorage.getItem(DB_KEYS.SERVICES) || '[]');
     if (services.length === 0) {
         services.push({
             id: DEFAULT_SERVICE_ID,
@@ -370,26 +1584,39 @@ function runDataMigration() {
             pricing_rules: { type: 'fixed', price: 30.00 }
         });
         localStorage.setItem(DB_KEYS.SERVICES, JSON.stringify(services));
+        // Not strictly a migration of legacy data, but safe to do.
     }
-    const newBookings = oldBookings.map(b => {
-        const newBooking = { ...b };
-        newBooking.customerId = newBooking.studentId;
-        newBooking.staffId = newBooking.instructorId;
-        newBooking.resourceIds = newBooking.vehicleId ? [newBooking.vehicleId] : [];
-        newBooking.serviceId = DEFAULT_SERVICE_ID;
-        delete newBooking.studentId;
-        delete newBooking.instructorId;
-        delete newBooking.vehicleId;
-        return newBooking;
-    });
-    localStorage.setItem(DB_KEYS.BOOKINGS, JSON.stringify(newBookings));
-    localStorage.removeItem('students');
-    localStorage.removeItem('instructors');
-    localStorage.removeItem('vehicles');
-    // Also remove the old bookings key to prevent orphaned data
-    // localStorage.removeItem('bookings'); // This line was deleting the new bookings data.
-    localStorage.setItem(MIGRATION_KEY, 'true');
-    showToast("Data model updated to v3.0.0!");
+
+    // Migrate legacy bookings only if they use legacy fields
+    if (hasLegacyBookings) {
+        const newBookings = legacyBookingsArray.map(b => {
+            const newBooking = { ...b };
+            newBooking.customerId = newBooking.studentId;
+            newBooking.staffId = newBooking.instructorId;
+            newBooking.resourceIds = newBooking.vehicleId ? [newBooking.vehicleId] : [];
+            // Preserve existing serviceId if present; otherwise default
+            if (!newBooking.serviceId) newBooking.serviceId = DEFAULT_SERVICE_ID;
+            delete newBooking.studentId;
+            delete newBooking.instructorId;
+            delete newBooking.vehicleId;
+            return newBooking;
+        });
+        localStorage.setItem(DB_KEYS.BOOKINGS, JSON.stringify(newBookings));
+        didMigrate = true;
+    }
+
+    // Clean up legacy keys only if we migrated
+    if (didMigrate) {
+        localStorage.removeItem('students');
+        localStorage.removeItem('instructors');
+        localStorage.removeItem('vehicles');
+        // Leave the 'bookings' key since it is now the canonical key in the new model.
+        localStorage.setItem(MIGRATION_KEY, 'true');
+        showToast("Data model updated to v3.0.0!");
+    } else {
+        // Nothing to migrate; avoid future checks
+        localStorage.setItem(MIGRATION_KEY, 'true');
+    }
 }
 
 function addDummyData() {
@@ -539,6 +1766,22 @@ function loadState() {
             paymentDetails: 'Please make payment via Bank Transfer to:\nAccount Name: Ray Ryan\nSort Code: 00-00-00\nAccount No: 00000000',
             smsTemplate: 'Hi [CustomerFirstName], this is a friendly reminder for your driving lesson on [LessonDate] at [LessonTime]. See you then! From [InstructorName].',
             autoBackupEnabled: false,
+            autoRemindersEnabled: false, // FEATURE: Phase 1 - SMS Reminders
+            autoEmailRemindersEnabled: false, // FEATURE: Phase 2 - Email Notifications
+            googleCalendarEnabled: false, // FEATURE: Phase 2 - Google Calendar Integration
+            googleCalendarClientId: '', // Google Calendar API client ID
+            googleCalendarApiKey: '', // Google Calendar API key
+            googleCalendarAutoSync: false, // Auto-sync bookings to Google Calendar
+            autoPaymentRemindersEnabled: false, // FEATURE: Phase 3 - Payment Reminders
+            paymentReminderDays: [7, 14, 30], // Days after booking to send payment reminders
+            // FEATURE: Phase 3 - Invoice Customization
+            invoiceLogo: '',
+            vatNumber: '',
+            invoiceEmail: '',
+            invoicePhone: '',
+            invoiceTerms: 'Payment due within 14 days. Late payments may incur additional charges.',
+            invoiceThankYou: 'Thank you for your business!',
+            invoiceFooterNote: 'This invoice was generated electronically and is valid without a signature.',
             firstDayOfWeek: 'monday',
             aiProvider: 'gemini',
             apiKeys: { gemini: '', openai: '', perplexity: '', openrouter: '' },
@@ -576,6 +1819,16 @@ function loadState() {
         const savedSettings = safeJSONParse(DB_KEYS.SETTINGS, {});
         state.settings = deepMerge(defaultSettings, savedSettings);
 
+        // SECURITY: Decrypt API keys after loading
+        if (typeof decryptAPIKey === 'function' && state.settings._encryptedApiKeys) {
+            const decryptedKeys = {};
+            for (const [provider, encryptedKey] of Object.entries(state.settings._encryptedApiKeys)) {
+                decryptedKeys[provider] = encryptedKey ? decryptAPIKey(encryptedKey) : '';
+            }
+            state.settings.apiKeys = decryptedKeys;
+            delete state.settings._encryptedApiKeys; // Clean up
+        }
+
     } catch (error) {
         console.error("Failed to load state from localStorage:", error);
         showDialog({
@@ -602,6 +1855,31 @@ function debouncedSaveState() {
 
 function saveState() {
     try {
+        // SECURITY: Validate state data before saving
+        if (typeof validateState === 'function') {
+            const validation = validateState(state);
+            if (!validation.valid) {
+                console.error('State validation failed:', validation.errors);
+                // Still save but log the errors
+                showDialog({
+                    title: 'Data Validation Warning',
+                    message: 'Some data failed validation checks. Please review your recent changes. Errors: ' + validation.errors.slice(0, 3).join('; '),
+                    buttons: [{ text: 'OK', class: btnPrimary }]
+                });
+            }
+        }
+
+        // SECURITY: Encrypt API keys before saving
+        const settingsToSave = { ...state.settings };
+        if (typeof encryptAPIKey === 'function' && settingsToSave.apiKeys) {
+            const encryptedKeys = {};
+            for (const [provider, key] of Object.entries(settingsToSave.apiKeys)) {
+                encryptedKeys[provider] = key ? encryptAPIKey(key) : '';
+            }
+            settingsToSave._encryptedApiKeys = encryptedKeys;
+            delete settingsToSave.apiKeys; // Don't save plain text keys
+        }
+
         localStorage.setItem(DB_KEYS.CUSTOMERS, JSON.stringify(state.customers));
         localStorage.setItem(DB_KEYS.STAFF, JSON.stringify(state.staff));
         localStorage.setItem(DB_KEYS.RESOURCES, JSON.stringify(state.resources));
@@ -611,7 +1889,7 @@ function saveState() {
         localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify(state.expenses));
         localStorage.setItem(DB_KEYS.TRANSACTIONS, JSON.stringify(state.transactions));
         localStorage.setItem(DB_KEYS.WAITING_LIST, JSON.stringify(state.waitingList));
-        localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(state.settings));
+        localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(settingsToSave));
     } catch (error) {
         console.error("Failed to save state to localStorage:", error);
         showDialog({
@@ -643,6 +1921,12 @@ function handleSaveSettings(event) {
     state.settings.paymentDetails = document.getElementById('payment-details').value;
     state.settings.smsTemplate = document.getElementById('sms-template').value;
     state.settings.firstDayOfWeek = document.getElementById('first-day-of-week').value;
+
+    // Save Google Calendar settings
+    state.settings.googleCalendarEnabled = document.getElementById('google-calendar-enabled').checked;
+    state.settings.googleCalendarClientId = document.getElementById('google-calendar-client-id').value;
+    state.settings.googleCalendarApiKey = document.getElementById('google-calendar-api-key').value;
+    state.settings.googleCalendarAutoSync = document.getElementById('google-calendar-auto-sync').checked;
 
     // New AI settings save logic
     const provider = document.getElementById('ai-provider').value;
@@ -872,7 +2156,7 @@ function renderGenericListView(viewName, title, columns, data, singularTitle) {
 
 function renderExpensesView() {
     const columns = [
-        { header: 'Date', render: item => parseYYYYMMDD(item.date).toLocaleDateString('en-GB'), class: 'w-1/6' },
+        { header: 'Date', render: item => safeDateFormat(item.date), class: 'w-1/6' },
         { header: 'Category', render: item => item.category, class: 'w-1/6' },
         { header: 'Description', render: item => item.description, class: 'w-3/6' },
         { header: 'Amount', render: item => `€${item.amount.toFixed(2)}`, class: 'text-right w-1/6' }
@@ -1023,7 +2307,7 @@ function renderWaitingListView() {
         return `
             <tr>
                 <td>${sanitizeHTML(customer ? customer.name : 'Unknown')}</td>
-                <td>${parseYYYYMMDD(item.date).toLocaleDateString('en-GB')}</td>
+                <td>${safeDateFormat(item.date)}</td>
                 <td>${item.startTime} - ${item.endTime}</td>
                 <td>${sanitizeHTML(staff ? staff.name : 'Any')}</td>
                 <td>${statusHtml}</td>
@@ -1125,6 +2409,32 @@ function renderSettingsView() {
                         </div>
                     </div>
                     <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-medium mb-2">Google Calendar Integration</h3>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label for="google-calendar-client-id" class="block mb-1 text-sm font-medium text-gray-700">Google Calendar Client ID</label>
+                                <input type="text" id="google-calendar-client-id" value="${state.settings.googleCalendarClientId || ''}" class="w-full">
+                            </div>
+                            <div>
+                                <label for="google-calendar-api-key" class="block mb-1 text-sm font-medium text-gray-700">Google Calendar API Key</label>
+                                <input type="text" id="google-calendar-api-key" value="${state.settings.googleCalendarApiKey || ''}" class="w-full">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="google-calendar-auto-sync" ${state.settings.googleCalendarAutoSync ? 'checked' : ''}>
+                                <label for="google-calendar-auto-sync" class="text-sm font-medium text-gray-700">Enable automatic sync with Google Calendar</label>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-2">
+                                To use Google Calendar integration:
+                                1. Go to Google Cloud Console
+                                2. Create a new project or select an existing one
+                                3. Enable the Google Calendar API
+                                4. Create OAuth 2.0 credentials (Client ID)
+                                5. Create an API key
+                                6. Add them here and save
+                            </p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-200 pt-6">
                         <h3 class="text-lg font-medium mb-2">Invoice Details</h3>
                         <div><label for="instructor-name" class="block mb-1 text-sm font-medium text-gray-700">Your Name / Company Name</label><input type="text" id="instructor-name" value="${sanitizeHTML(state.settings.instructorName)}" required class="w-full"></div>
                         <div class="mt-4"><label for="instructor-address" class="block mb-1 text-sm font-medium text-gray-700">Your Address</label><textarea id="instructor-address" rows="3" required class="w-full">${sanitizeHTML(state.settings.instructorAddress)}</textarea></div>
@@ -1145,6 +2455,109 @@ function renderSettingsView() {
                                 <li><code>[LessonTime]</code> - The start time of the lesson (e.g., 09:00).</li>
                                 <li><code>[InstructorName]</code> - Your name from the Invoice Details.</li>
                             </ul>
+                        </div>
+                        <!-- FEATURE: Phase 1 - SMS Automation Controls -->
+                        <div class="mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                            <div class="flex items-center justify-between mb-3">
+                                <label for="auto-reminders" class="font-medium text-gray-700">📱 Auto-Send SMS Reminders (24hrs before)</label>
+                                <input type="checkbox" id="auto-reminders" onchange="toggleAutoReminders(this.checked)" ${state.settings.autoRemindersEnabled ? 'checked' : ''} class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                            </div>
+                            <p class="text-xs text-gray-600 mb-3">When enabled, the system will prepare SMS reminders for bookings happening tomorrow.</p>
+                            <button type="button" onclick="manualSendReminders()" class="${btnSecondary} w-full text-sm">Send SMS Reminders Now</button>
+                            <p class="text-xs text-gray-500 mt-2 italic">Note: Currently in simulation mode. To enable real SMS sending, integrate with Twilio or similar service.</p>
+                        </div>
+                    </div>
+                    <!-- FEATURE: Phase 2 - Email Notifications -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-medium mb-2">📧 Email Notifications</h3>
+                        <div class="p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                            <div class="flex items-center justify-between mb-3">
+                                <label for="auto-email-reminders" class="font-medium text-gray-700">📧 Auto-Send Email Reminders (24hrs before)</label>
+                                <input type="checkbox" id="auto-email-reminders" onchange="toggleAutoEmailReminders(this.checked)" ${state.settings.autoEmailRemindersEnabled ? 'checked' : ''} class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                            </div>
+                            <p class="text-xs text-gray-600 mb-3">When enabled, the system will prepare email reminders for bookings happening tomorrow.</p>
+                            <button type="button" onclick="manualSendEmailReminders()" class="${btnSecondary} w-full text-sm mb-2">Send Email Reminders Now</button>
+                            <button type="button" onclick="testBookingConfirmationEmail()" class="${btnSecondary} w-full text-sm">Test Booking Confirmation Email</button>
+                            <p class="text-xs text-gray-500 mt-3 italic">Note: Currently in simulation mode. Check browser console (F12) to see prepared emails. To enable real email sending, integrate with EmailJS or SendGrid.</p>
+                            <div class="mt-3 p-2 bg-white rounded text-xs">
+                                <strong>Email Types:</strong>
+                                <ul class="list-disc list-inside mt-1 text-gray-600">
+                                    <li>Booking Confirmation (sent when booking created)</li>
+                                    <li>24-hour Reminder (sent day before lesson)</li>
+                                    <li>Payment Receipt (sent when payment recorded)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- FEATURE: Phase 3 - Payment Reminders -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-medium mb-2">💰 Payment Reminders</h3>
+                        <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded">
+                            <div class="flex items-center justify-between mb-3">
+                                <label for="auto-payment-reminders" class="font-medium text-gray-700">💰 Auto-Send Payment Reminders</label>
+                                <input type="checkbox" id="auto-payment-reminders" onchange="toggleAutoPaymentReminders(this.checked)" ${state.settings.autoPaymentRemindersEnabled ? 'checked' : ''} class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                            </div>
+                            <p class="text-xs text-gray-600 mb-3">Automatically send payment reminders for overdue completed bookings.</p>
+
+                            <div class="mb-3 p-3 bg-white rounded">
+                                <p class="text-sm font-medium text-gray-700 mb-2">Send reminders after:</p>
+                                <div class="space-y-2">
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" id="reminder-7-days" ${state.settings.paymentReminderDays?.includes(7) ? 'checked' : ''} onchange="updatePaymentReminderDays()" class="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                        <span class="text-sm text-gray-700">7 days (first reminder)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" id="reminder-14-days" ${state.settings.paymentReminderDays?.includes(14) ? 'checked' : ''} onchange="updatePaymentReminderDays()" class="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                        <span class="text-sm text-gray-700">14 days (second reminder)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" id="reminder-30-days" ${state.settings.paymentReminderDays?.includes(30) ? 'checked' : ''} onchange="updatePaymentReminderDays()" class="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                        <span class="text-sm text-gray-700">30 days (final reminder)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="button" onclick="manualSendPaymentReminders()" class="${btnSecondary} w-full text-sm">Send Payment Reminders Now</button>
+                            <p class="text-xs text-gray-500 mt-3 italic">Note: Reminders are logged to console (F12). Integrate with email/SMS for automatic sending.</p>
+                        </div>
+                    </div>
+                    <!-- FEATURE: Phase 3 - Invoice Customization -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-medium mb-2">🧾 Invoice Customization</h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="invoice-vat" class="block text-sm font-medium text-gray-700 mb-1">VAT Number (optional)</label>
+                                    <input type="text" id="invoice-vat" value="${sanitizeHTML(state.settings.vatNumber || '')}" placeholder="IE1234567T" onchange="updateInvoiceSetting('vatNumber', this.value)" class="w-full">
+                                </div>
+                                <div>
+                                    <label for="invoice-email" class="block text-sm font-medium text-gray-700 mb-1">Invoice Email</label>
+                                    <input type="email" id="invoice-email" value="${sanitizeHTML(state.settings.invoiceEmail || '')}" placeholder="invoices@yourcompany.com" onchange="updateInvoiceSetting('invoiceEmail', this.value)" class="w-full">
+                                </div>
+                                <div>
+                                    <label for="invoice-phone" class="block text-sm font-medium text-gray-700 mb-1">Invoice Phone</label>
+                                    <input type="tel" id="invoice-phone" value="${sanitizeHTML(state.settings.invoicePhone || '')}" placeholder="+353 87 123 4567" onchange="updateInvoiceSetting('invoicePhone', this.value)" class="w-full">
+                                </div>
+                                <div>
+                                    <label for="invoice-logo" class="block text-sm font-medium text-gray-700 mb-1">Company Logo URL</label>
+                                    <input type="url" id="invoice-logo" value="${sanitizeHTML(state.settings.invoiceLogo || '')}" placeholder="https://yoursite.com/logo.png" onchange="updateInvoiceSetting('invoiceLogo', this.value)" class="w-full">
+                                    <p class="text-xs text-gray-500 mt-1">Enter a URL to your logo image (appears on invoices)</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="invoice-terms" class="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
+                                <textarea id="invoice-terms" rows="3" onchange="updateInvoiceSetting('invoiceTerms', this.value)" class="w-full" placeholder="Payment terms, late fees, etc.">${sanitizeHTML(state.settings.invoiceTerms || '')}</textarea>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="invoice-thank-you" class="block text-sm font-medium text-gray-700 mb-1">Thank You Message</label>
+                                    <input type="text" id="invoice-thank-you" value="${sanitizeHTML(state.settings.invoiceThankYou || '')}" onchange="updateInvoiceSetting('invoiceThankYou', this.value)" class="w-full">
+                                </div>
+                                <div>
+                                    <label for="invoice-footer" class="block text-sm font-medium text-gray-700 mb-1">Footer Note</label>
+                                    <input type="text" id="invoice-footer" value="${sanitizeHTML(state.settings.invoiceFooterNote || '')}" onchange="updateInvoiceSetting('invoiceFooterNote', this.value)" class="w-full">
+                                </div>
+                            </div>
                         </div>
                     </div>
                      <div class="border-t border-gray-200 pt-6">
@@ -1268,12 +2681,19 @@ function renderCalendarHeader() {
                 <h2 class="text-xl font-semibold text-gray-800 text-center">${title}</h2>
                 <button onclick="changeDate(currentView, 1)" class="p-2 rounded-md hover:bg-gray-100"><svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
                 <div class="flex p-1 bg-gray-100 rounded-md">
                     <button onclick="showView('day')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('day')}">Day</button>
                     <button onclick="showView('week')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('week')}">Week</button>
                     <button onclick="showView('month')" class="px-3 py-1 text-sm rounded-md ${getBtnClass('month')}">Month</button>
                 </div>
+                <!-- FEATURE: Phase 2 - Google Calendar Integration -->
+                <button id="google-calendar-sync" onclick="handleGoogleAuth()" class="${btnGreen}" title="Sync with Google Calendar">
+                    🔄 Sync with Google Calendar
+                </button>
+                <button onclick="exportAllBookingsToCalendar()" class="${btnGreen}" title="Export all upcoming bookings to .ics file">
+                    📅 Export to Calendar
+                </button>
                 <button onclick="openBlockDatesModal()" class="${btnDanger}">Block Dates</button>
             </div>
         </div>`;
@@ -1498,7 +2918,181 @@ function renderMonthView() {
 
 function renderSummaryView() {
     const container = document.getElementById('summary-view');
+
+    // FEATURE: Calculate Dashboard Widgets (Phase 1 Improvement)
+    const todayStr = toLocalDateString(new Date());
+    const todayBookings = state.bookings.filter(b => b.date === todayStr && b.status === 'Completed');
+    const todayEarnings = todayBookings.reduce((sum, b) => {
+        const service = state.services.find(s => s.id === b.serviceId);
+        return sum + (service?.base_price || 0);
+    }, 0);
+
+    // This week's bookings
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const thisWeekBookings = state.bookings.filter(b => {
+        const bookingDate = parseYYYYMMDD(b.date);
+        return bookingDate >= weekStart && bookingDate <= weekEnd;
+    }).length;
+
+    // Outstanding payments
+    const outstandingBookings = state.bookings.filter(b =>
+        (b.status === 'Completed' || b.status === 'Scheduled') &&
+        b.paymentStatus === 'Unpaid'
+    );
+    const outstandingTotal = outstandingBookings.reduce((sum, b) => {
+        const service = state.services.find(s => s.id === b.serviceId);
+        return sum + (service?.base_price || 0);
+    }, 0);
+
+    // Vehicle maintenance due soon (next 30 days)
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    const vehiclesMaintenanceDue = state.resources.filter(r => {
+        if (r.resource_type !== 'VEHICLE' || !r.compliance) return false;
+        const motDate = parseYYYYMMDD(r.compliance.mot_expiry);
+        const insuranceDate = parseYYYYMMDD(r.compliance.insurance_expiry);
+        return (motDate && motDate <= thirtyDaysFromNow) || (insuranceDate && insuranceDate <= thirtyDaysFromNow);
+    });
+
+    // Monthly revenue (current month)
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    const monthEnd = new Date(monthStart);
+    monthEnd.setMonth(monthStart.getMonth() + 1);
+    const monthlyBookings = state.bookings.filter(b => {
+        const bookingDate = parseYYYYMMDD(b.date);
+        return bookingDate >= monthStart && bookingDate < monthEnd && b.status === 'Completed';
+    });
+    const monthlyRevenue = monthlyBookings.reduce((sum, b) => {
+        const service = state.services.find(s => s.id === b.serviceId);
+        return sum + (service?.base_price || 0);
+    }, 0);
+
+    // Top 3 customers this month (by booking count)
+    const customerBookingCounts = {};
+    monthlyBookings.forEach(b => {
+        customerBookingCounts[b.customerId] = (customerBookingCounts[b.customerId] || 0) + 1;
+    });
+    const topCustomers = Object.entries(customerBookingCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([customerId, count]) => {
+            const customer = state.customers.find(c => c.id === customerId);
+            return { name: customer?.name || 'Unknown', count };
+        });
+
     container.innerHTML = `
+        <!-- FEATURE: Dashboard Widgets (Phase 1 Improvement) -->
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Today's Earnings -->
+            <div class="bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-lg p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Today's Earnings</p>
+                        <p class="text-3xl font-bold mt-1">€${todayEarnings.toFixed(2)}</p>
+                        <p class="text-xs mt-1 opacity-75">${todayBookings.length} completed</p>
+                    </div>
+                    <div class="text-5xl opacity-20">💰</div>
+                </div>
+            </div>
+
+            <!-- This Week's Bookings -->
+            <div class="bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-lg p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">This Week</p>
+                        <p class="text-3xl font-bold mt-1">${thisWeekBookings}</p>
+                        <p class="text-xs mt-1 opacity-75">bookings</p>
+                    </div>
+                    <div class="text-5xl opacity-20">📅</div>
+                </div>
+            </div>
+
+            <!-- Outstanding Payments -->
+            <div class="bg-gradient-to-br from-${outstandingTotal > 0 ? 'orange-400 to-orange-600' : 'gray-400 to-gray-600'} rounded-lg shadow-lg p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Outstanding</p>
+                        <p class="text-3xl font-bold mt-1">€${outstandingTotal.toFixed(2)}</p>
+                        <p class="text-xs mt-1 opacity-75">${outstandingBookings.length} unpaid</p>
+                    </div>
+                    <div class="text-5xl opacity-20">⚠️</div>
+                </div>
+            </div>
+
+            <!-- Monthly Revenue -->
+            <div class="bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg shadow-lg p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">This Month</p>
+                        <p class="text-3xl font-bold mt-1">€${monthlyRevenue.toFixed(2)}</p>
+                        <p class="text-xs mt-1 opacity-75">${monthlyBookings.length} lessons</p>
+                    </div>
+                    <div class="text-5xl opacity-20">📈</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Info Widgets -->
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Vehicle Maintenance Alert -->
+            ${vehiclesMaintenanceDue.length > 0 ? `
+                <div class="bg-red-50 border-l-4 border-red-500 rounded-lg shadow p-4">
+                    <div class="flex items-start">
+                        <div class="text-2xl mr-3">🚗</div>
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-red-800 mb-1">Vehicle Maintenance Due Soon</h3>
+                            <ul class="text-sm text-red-700 space-y-1">
+                                ${vehiclesMaintenanceDue.map(v => `<li>• ${sanitizeHTML(v.resource_name)}</li>`).join('')}
+                            </ul>
+                            <button onclick="showView('resources')" class="mt-2 text-xs underline text-red-800">View Resources →</button>
+                        </div>
+                    </div>
+                </div>
+            ` : `
+                <div class="bg-green-50 border-l-4 border-green-500 rounded-lg shadow p-4">
+                    <div class="flex items-start">
+                        <div class="text-2xl mr-3">✅</div>
+                        <div>
+                            <h3 class="font-semibold text-green-800">All Vehicles Compliant</h3>
+                            <p class="text-sm text-green-700 mt-1">No maintenance due in next 30 days</p>
+                        </div>
+                    </div>
+                </div>
+            `}
+
+            <!-- Top Customers This Month -->
+            <div class="bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow p-4">
+                <div class="flex items-start">
+                    <div class="text-2xl mr-3">⭐</div>
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-blue-800 mb-2">Top Customers This Month</h3>
+                        ${topCustomers.length > 0 ? `
+                            <ul class="text-sm text-blue-700 space-y-1">
+                                ${topCustomers.map((c, i) => `<li>${i + 1}. ${sanitizeHTML(c.name)} (${c.count} bookings)</li>`).join('')}
+                            </ul>
+                        ` : `
+                            <p class="text-sm text-blue-700">No bookings this month yet</p>
+                        `}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FEATURE: Phase 3 - Income Analytics Dashboard -->
+        <div class="mb-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <svg class="h-6 w-6 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                </svg>
+                Income & Business Analytics
+            </h2>
+            ${renderIncomeAnalyticsDashboard()}
+        </div>
+
         <div class="bg-white rounded-lg shadow p-4 sm:p-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">Booking Summary</h2>
@@ -1591,7 +3185,7 @@ function renderSummaryList() {
         const staff = state.staff.find(s => s.id === booking.staffId)?.name || 'N/A';
         const resource = booking.resourceIds && booking.resourceIds.length > 0 ? state.resources.find(r => r.id === booking.resourceIds[0])?.resource_name : 'N/A';
         const service = state.services.find(s => s.id === booking.serviceId)?.service_name || 'N/A';
-        const date = parseYYYYMMDD(booking.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const date = safeDateFormat(booking.date, { day: '2-digit', month: 'short', year: 'numeric' });
         return `
             <div class="p-3 border-b border-gray-200 grid grid-cols-6 gap-4 items-center">
                 <p class="font-semibold">${date}</p>
@@ -1950,72 +3544,183 @@ function handleBillingPageChange(page) {
 function renderReportsView() {
     const container = document.getElementById('reports-view');
     container.innerHTML = `
-        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Business Reports</h2>
-                <div class="flex items-center gap-2">
-                     <button id="analyze-reports-btn" onclick="handleAnalyzeReports()" class="${btnPurple}">✨ Analyze Reports</button>
-                     <button onclick="exportReportsToExcel()" class="${btnGreen}">Export to Excel</button>
+        <div class="reports-container">
+            <!-- Header Section -->
+            <div class="reports-header">
+                <div class="reports-header-content">
+                    <h1 class="reports-title">Business Reports</h1>
+                    <p class="reports-subtitle">Real-time insights into your business performance</p>
+                </div>
+                <div class="reports-actions">
+                    <button id="analyze-reports-btn" onclick="handleAnalyzeReports()" class="${btnPurple}">✨ Analyze Reports</button>
+                    <button onclick="exportReportsToExcel()" class="${btnGreen}">📊 Export to Excel</button>
+                </div>
+            </div>
+
+            <!-- Filter & Date Range Section -->
+            <div class="reports-filters">
+                <div class="filter-group">
+                    <label for="report-date-range">Date Range:</label>
+                    <select id="report-date-range" onchange="handleDateRangeChange()" class="filter-select">
+                        <option value="all">All Time</option>
+                        <option value="this-month">This Month</option>
+                        <option value="last-month">Last Month</option>
+                        <option value="last-3-months">Last 3 Months</option>
+                        <option value="last-6-months">Last 6 Months</option>
+                        <option value="this-year">This Year</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="report-department">Department:</label>
+                    <select id="report-department" onchange="handleDepartmentChange()" class="filter-select">
+                        <option value="all">All Departments</option>
+                        <option value="driving-lessons">Driving Lessons</option>
+                        <option value="tours">Tours</option>
+                    </select>
                 </div>
             </div>
 
             <!-- AI Analysis Container -->
-            <div id="reports-analysis-container" class="hidden mb-8">
-                <h3 class="text-lg font-semibold text-gray-800 mb-2">AI Business Overview</h3>
-                <div id="reports-analysis-output" class="ai-summary-container whitespace-pre-wrap"></div>
+            <div id="reports-analysis-container" class="hidden reports-analysis-box">
+                <div class="analysis-header">
+                    <h3 class="analysis-title">🤖 AI Business Overview</h3>
+                    <button onclick="toggleAnalysis()" class="toggle-btn">−</button>
+                </div>
+                <div id="reports-analysis-output" class="analysis-content whitespace-pre-wrap"></div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- KPI Summary Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card kpi-revenue">
+                    <div class="kpi-icon">💰</div>
+                    <div class="kpi-content">
+                        <p class="kpi-label">Total Revenue</p>
+                        <p id="kpi-revenue" class="kpi-value">€0.00</p>
+                        <p id="kpi-revenue-trend" class="kpi-trend">↑ 0%</p>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-expenses">
+                    <div class="kpi-icon">💸</div>
+                    <div class="kpi-content">
+                        <p class="kpi-label">Total Expenses</p>
+                        <p id="kpi-expenses" class="kpi-value">€0.00</p>
+                        <p id="kpi-expenses-trend" class="kpi-trend">↓ 0%</p>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-profit">
+                    <div class="kpi-icon">📈</div>
+                    <div class="kpi-content">
+                        <p class="kpi-label">Net Profit</p>
+                        <p id="kpi-profit" class="kpi-value">€0.00</p>
+                        <p id="kpi-profit-trend" class="kpi-trend">↑ 0%</p>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-bookings">
+                    <div class="kpi-icon">📅</div>
+                    <div class="kpi-content">
+                        <p class="kpi-label">Total Bookings</p>
+                        <p id="kpi-bookings" class="kpi-value">0</p>
+                        <p id="kpi-bookings-trend" class="kpi-trend">↑ 0%</p>
+                    </div>
+                </div>
+            </div>
 
-                <div id="overdue-payments-report" class="lg:col-span-2"></div>
+            <!-- Outstanding Payments Alert -->
+            <div id="overdue-payments-report"></div>
 
-                <div class="bg-gray-50 p-4 rounded-lg lg:col-span-2">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Income vs. Expenses by Month</h3>
-                    <canvas id="incomeExpenseChart"></canvas>
+            <!-- Charts Grid (3 columns on desktop, 1 on mobile) -->
+            <div class="charts-grid">
+                <!-- Income vs Expenses (Full Width) -->
+                <div class="chart-card chart-full-width">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Income vs. Expenses</h3>
+                        <span class="chart-info">Monthly comparison</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="incomeExpenseChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Service Popularity</h3>
-                    <div class="max-w-xs mx-auto">
+                <!-- Service Popularity -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Service Popularity</h3>
+                        <span class="chart-info">Distribution</span>
+                    </div>
+                    <div class="chart-container small">
                         <canvas id="servicePopularityChart"></canvas>
                     </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Lesson & Package Popularity</h3>
-                    <canvas id="lessonPackagePopularityChart"></canvas>
+                <!-- Top Customers -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Top 5 Customers</h3>
+                        <span class="chart-info">By booking count</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="topCustomersChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Top 5 Customers by Booking Count</h3>
-                    <canvas id="topCustomersChart"></canvas>
+                <!-- Staff Performance -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Staff Performance</h3>
+                        <span class="chart-info">Bookings handled</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="staffPerformanceChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Staff Performance</h3>
-                    <canvas id="staffPerformanceChart"></canvas>
+                <!-- Lesson & Package Popularity -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Lessons & Packages</h3>
+                        <span class="chart-info">Popularity ranking</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="lessonPackagePopularityChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Resource Utilisation</h3>
-                    <canvas id="resourceUtilisationChart"></canvas>
+                <!-- Resource Utilisation -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Resource Utilization</h3>
+                        <span class="chart-info">Equipment usage</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="resourceUtilisationChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg lg:col-span-2">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Staff Activity</h3>
-                    <div id="staff-stats-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                <!-- Staff Activity (Full Width) -->
+                <div class="chart-card chart-full-width">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Staff Activity Overview</h3>
+                        <span class="chart-info">Hours and time off</span>
+                    </div>
+                    <div id="staff-stats-container" class="staff-stats-grid"></div>
                 </div>
 
-                <div class="bg-gray-50 p-4 rounded-lg lg:col-span-2">
-                    <h3 class="text-lg font-semibold mb-4 text-center">Peak Booking Hours</h3>
-                    <canvas id="peakBookingHoursChart"></canvas>
+                <!-- Peak Booking Hours (Full Width) -->
+                <div class="chart-card chart-full-width">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Peak Booking Hours</h3>
+                        <span class="chart-info">Daily booking distribution</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="peakBookingHoursChart"></canvas>
+                    </div>
                 </div>
-
             </div>
         </div>
     `;
     generateOverdueReport();
     generateCharts();
+    updateKPICards();
 }
 
 
@@ -2074,11 +3779,213 @@ function findBookingConflict(bookingDetails) {
     return null; // No conflicts found
 }
 
-function saveBooking(event) {
+// Helper function to check for adjacent bookings (back-to-back without buffer)
+function checkAdjacentBookings(bookingDetails) {
+    const { id, date, startTime, endTime, staffId } = bookingDetails;
+    const BUFFER_MINUTES = 15; // Recommended break time between lessons
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+
+    // Find bookings immediately before or after this one
+    const adjacentBookings = state.bookings.filter(b =>
+        b.id !== id &&
+        b.status !== 'Cancelled' &&
+        b.date === date &&
+        b.staffId === staffId
+    );
+
+    const warnings = [];
+
+    adjacentBookings.forEach(b => {
+        const bStart = timeToMinutes(b.startTime);
+        const bEnd = timeToMinutes(b.endTime);
+
+        // Check if booking ends exactly when another starts (no break)
+        if (endMinutes === bStart || startMinutes === bEnd) {
+            warnings.push(`Back-to-back booking detected: No break between ${b.startTime}-${b.endTime}. Consider adding ${BUFFER_MINUTES} min buffer.`);
+        }
+
+        // Check if there's a very short break (less than recommended buffer)
+        if (endMinutes < bStart && bStart - endMinutes < BUFFER_MINUTES) {
+            warnings.push(`Short break detected: Only ${bStart - endMinutes} minutes before next booking at ${b.startTime}.`);
+        }
+        if (bEnd < startMinutes && startMinutes - bEnd < BUFFER_MINUTES) {
+            warnings.push(`Short break detected: Only ${startMinutes - bEnd} minutes after previous booking ending at ${b.endTime}.`);
+        }
+    });
+
+    return warnings;
+}
+
+// FEATURE: Recurring Bookings Helper Functions (Phase 1 Improvement)
+function toggleRecurringOptions() {
+    const checkbox = document.getElementById('booking-recurring');
+    const options = document.getElementById('recurring-options');
+    const preview = document.getElementById('recurring-preview');
+
+    if (checkbox.checked) {
+        options.classList.remove('hidden');
+        preview.classList.remove('hidden');
+        updateRecurringPreview();
+    } else {
+        options.classList.add('hidden');
+        preview.classList.add('hidden');
+    }
+}
+
+function updateRecurringPreview() {
+    const date = document.getElementById('booking-date').value;
+    const type = document.getElementById('recurring-type').value;
+    const count = parseInt(document.getElementById('recurring-count').value) || 1;
+    const until = document.getElementById('recurring-until').value;
+
+    if (!date) {
+        document.getElementById('recurring-preview').textContent = 'Please select a booking date first';
+        return;
+    }
+
+    const dates = generateRecurringDates(date, type, count, until);
+    const preview = `Will create ${dates.length} bookings: ${dates.slice(0, 3).join(', ')}${dates.length > 3 ? '...' : ''}`;
+    document.getElementById('recurring-preview').textContent = preview;
+}
+
+function generateRecurringDates(startDate, type, count, untilDate) {
+    const dates = [startDate];
+    let currentDate = parseYYYYMMDD(startDate);
+    const maxDate = untilDate ? parseYYYYMMDD(untilDate) : null;
+
+    let increment = 7; // Default to weekly
+    if (type === 'daily') increment = 1;
+    if (type === 'biweekly') increment = 14;
+
+    let generatedCount = 1;
+    while (generatedCount < count) {
+        currentDate = new Date(currentDate);
+        currentDate.setDate(currentDate.getDate() + increment);
+
+        // Stop if we've reached the until date
+        if (maxDate && currentDate > maxDate) break;
+
+        dates.push(toLocalDateString(currentDate));
+        generatedCount++;
+    }
+
+    return dates;
+}
+
+async function saveBooking(event) {
     event.preventDefault();
 
     let bookingId = document.getElementById('booking-id').value;
     const isNewBooking = !bookingId;
+
+    // If Google Calendar integration is enabled, check for conflicts first
+    if (state.settings.googleCalendarEnabled && 
+        state.settings.googleCalendarAutoSync && 
+        gapi.auth2?.getAuthInstance()?.isSignedIn.get()) {
+        
+        const date = document.getElementById('booking-date').value;
+        const startTime = document.getElementById('booking-start-time').value;
+        const endTime = document.getElementById('booking-end-time').value;
+        
+        try {
+            const conflicts = await checkGoogleCalendarConflicts(date, startTime, endTime);
+            if (conflicts.length > 0) {
+                const conflictDetails = conflicts.map(c => `${c.title} at ${c.time}`).join('\n');
+                const proceed = await new Promise(resolve => {
+                    showDialog({
+                        title: 'Google Calendar Conflicts',
+                        message: `Warning: Found conflicts with existing Google Calendar events:\n${conflictDetails}\n\nDo you want to proceed anyway?`,
+                        buttons: [
+                            { text: 'Cancel', class: btnSecondary, onClick: () => resolve(false) },
+                            { text: 'Save Anyway', class: btnPrimary, onClick: () => resolve(true) }
+                        ]
+                    });
+                });
+                
+                if (!proceed) return;
+            }
+        } catch (error) {
+            console.error('Failed to check Google Calendar conflicts:', error);
+            // Continue with saving even if conflict check fails
+        }
+    }
+
+    // FEATURE: Handle Recurring Bookings (Phase 1 Improvement)
+    const isRecurring = document.getElementById('booking-recurring').checked;
+    if (isRecurring && isNewBooking) {
+        // Handle recurring booking creation
+        const recurringType = document.getElementById('recurring-type').value;
+        const recurringCount = parseInt(document.getElementById('recurring-count').value) || 1;
+        const recurringUntil = document.getElementById('recurring-until').value;
+        const startDate = document.getElementById('booking-date').value;
+
+        const dates = generateRecurringDates(startDate, recurringType, recurringCount, recurringUntil);
+
+        // Validate all dates first for conflicts
+        const startTime = document.getElementById('booking-start-time').value;
+        const endTime = document.getElementById('booking-end-time').value;
+        const customerId = document.getElementById('booking-customer').value;
+        const staffId = document.getElementById('booking-staff').value;
+        const resourceId = document.getElementById('booking-resource').value;
+
+        const conflicts = [];
+        dates.forEach(date => {
+            const conflict = findBookingConflict({
+                id: null, date, startTime, endTime, customerId, staffId,
+                resourceIds: resourceId ? [resourceId] : []
+            });
+            if (conflict) {
+                conflicts.push({ date, conflict });
+            }
+        });
+
+        if (conflicts.length > 0) {
+            const conflictList = conflicts.slice(0, 3).map(c => `${c.date}: ${c.conflict}`).join('\n');
+            showDialog({
+                title: 'Recurring Booking Conflicts',
+                message: `Found ${conflicts.length} conflict(s):\n\n${conflictList}${conflicts.length > 3 ? '\n...' : ''}\n\nPlease resolve conflicts and try again.`,
+                buttons: [{ text: 'OK', class: btnPrimary }]
+            });
+            return;
+        }
+
+        // Create all bookings
+        const createdBookings = [];
+        dates.forEach(date => {
+            const newBookingId = `booking_${generateUUID()}`;
+            const serviceId = document.getElementById('booking-service').value;
+            const fee = calculateBookingFee(serviceId);
+
+            const bookingData = {
+                id: newBookingId,
+                date: date,
+                startTime: startTime,
+                endTime: endTime,
+                customerId: customerId,
+                staffId: staffId,
+                resourceIds: resourceId ? [resourceId] : [],
+                serviceId: serviceId,
+                fee: fee,
+                status: document.getElementById('booking-status').value || 'Scheduled',
+                paymentStatus: document.getElementById('booking-payment-status').value || 'Unpaid',
+                pickup: document.getElementById('booking-pickup').value,
+                transactionId: null,
+                recurringGroup: dates[0] // Track which recurring group this belongs to
+            };
+
+            state.bookings.push(bookingData);
+            createdBookings.push(bookingData);
+        });
+
+        saveState();
+        closeBookingModal();
+        refreshCurrentView();
+        showToast(`Created ${createdBookings.length} recurring bookings successfully!`);
+        return;
+    }
+
     if (isNewBooking) {
         bookingId = `booking_${generateUUID()}`;
     }
@@ -2093,6 +4000,83 @@ function saveBooking(event) {
     const newStatus = document.getElementById('booking-status').value;
     const newPaymentStatus = document.getElementById('booking-payment-status').value;
 
+    // VALIDATION: Check required fields
+    if (!date || !startTime || !endTime || !customerId || !staffId || !serviceId) {
+        showDialog({
+            title: 'Missing Information',
+            message: 'Please fill in all required fields (date, time, customer, staff, and service).',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // VALIDATION: Check time values are valid
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+
+    if (startMinutes === 0 && startTime !== '00:00') {
+        showDialog({
+            title: 'Invalid Start Time',
+            message: 'Please select a valid start time.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    if (endMinutes === 0 && endTime !== '00:00') {
+        showDialog({
+            title: 'Invalid End Time',
+            message: 'Please select a valid end time.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // VALIDATION: End time must be after start time
+    if (startMinutes >= endMinutes) {
+        showDialog({
+            title: 'Invalid Time Range',
+            message: 'End time must be after start time. Please adjust the booking times.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // VALIDATION: Booking must be within calendar hours
+    const calendarStartMinutes = CALENDAR_START_HOUR * 60;
+    const calendarEndMinutes = CALENDAR_END_HOUR * 60;
+
+    if (startMinutes < calendarStartMinutes || endMinutes > calendarEndMinutes) {
+        showDialog({
+            title: 'Outside Calendar Hours',
+            message: `Bookings must be between ${CALENDAR_START_HOUR}:00 and ${CALENDAR_END_HOUR}:00. Please adjust the times.`,
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // VALIDATION: Check booking duration is reasonable (at least 15 minutes)
+    const durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes < 15) {
+        showDialog({
+            title: 'Booking Too Short',
+            message: 'Booking must be at least 15 minutes long.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
+    // VALIDATION: Check date is valid and not too far in the past
+    const bookingDate = parseYYYYMMDD(date);
+    if (!bookingDate || isNaN(bookingDate.getTime())) {
+        showDialog({
+            title: 'Invalid Date',
+            message: 'Please select a valid date.',
+            buttons: [{ text: 'OK', class: btnPrimary }]
+        });
+        return;
+    }
+
     const conflict = findBookingConflict({
         id: bookingId, date, startTime, endTime, customerId, staffId,
         resourceIds: resourceId ? [resourceId] : []
@@ -2106,6 +4090,17 @@ function saveBooking(event) {
         });
         return;
     }
+
+    // IMPROVEMENT: Check for adjacent bookings (warning only, doesn't block)
+    const adjacentWarnings = checkAdjacentBookings({
+        id: bookingId, date, startTime, endTime, staffId
+    });
+    if (adjacentWarnings.length > 0) {
+        console.warn('Adjacent booking warnings:', adjacentWarnings);
+        // Show first warning as toast (non-blocking)
+        showToast(adjacentWarnings[0]);
+    }
+
     const fee = calculateBookingFee(serviceId);
 
     const originalBooking = !isNewBooking ? state.bookings.find(b => b.id === bookingId) : null;
@@ -2116,20 +4111,36 @@ function saveBooking(event) {
     const wasPaid = oldPaymentStatus === 'Paid';
     const isPaid = newPaymentStatus === 'Paid';
 
+    // SAFETY: Check if a transaction already exists for this booking
+    const existingTransaction = state.transactions.find(t =>
+        t.bookingId === bookingId && t.type === 'payment'
+    );
+
     if (isPaid && !wasPaid) {
-        // Becoming paid: Create a new transaction
-        const newTransaction = {
-            id: `txn_${generateUUID()}`,
-            date: toLocalDateString(new Date()),
-            type: 'payment',
-            description: `Payment for booking on ${date}`,
-            amount: fee,
-            customerId: customerId,
-            bookingId: bookingId
-        };
-        state.transactions.push(newTransaction);
-        transactionId = newTransaction.id;
-        showToast('Payment transaction created.');
+        // Becoming paid: Check for existing transaction first
+        if (existingTransaction) {
+            // Transaction already exists, just update it instead of creating new one
+            transactionId = existingTransaction.id;
+            existingTransaction.amount = fee;
+            existingTransaction.date = toLocalDateString(new Date());
+            existingTransaction.description = `Payment for booking on ${date}`;
+            existingTransaction.customerId = customerId; // Update in case customer changed
+            showToast('Payment transaction updated.');
+        } else {
+            // No existing transaction, create a new one
+            const newTransaction = {
+                id: `txn_${generateUUID()}`,
+                date: toLocalDateString(new Date()),
+                type: 'payment',
+                description: `Payment for booking on ${date}`,
+                amount: fee,
+                customerId: customerId,
+                bookingId: bookingId
+            };
+            state.transactions.push(newTransaction);
+            transactionId = newTransaction.id;
+            showToast('Payment transaction created.');
+        }
     } else if (!isPaid && wasPaid) {
         // Becoming unpaid: Delete the old transaction
         if (transactionId) {
@@ -2160,7 +4171,20 @@ function saveBooking(event) {
         status: newStatus,
         paymentStatus: newPaymentStatus,
         pickup: document.getElementById('booking-pickup').value,
-        transactionId: transactionId
+        transactionId: transactionId,
+
+        // TOUR-SPECIFIC FIELDS
+        groupSize: document.getElementById('booking-group-size') ? parseInt(document.getElementById('booking-group-size').value) || 1 : 1,
+        participants: document.getElementById('booking-participants') ? document.getElementById('booking-participants').value.split('\n').filter(p => p.trim()) : [],
+        specialRequirements: document.getElementById('booking-special-requirements') ? document.getElementById('booking-special-requirements').value : '',
+        waiverSigned: document.getElementById('booking-waiver-signed') ? document.getElementById('booking-waiver-signed').checked : false,
+        waiverSignedDate: document.getElementById('booking-waiver-signed') && document.getElementById('booking-waiver-signed').checked ? new Date().toISOString() : null,
+
+        // MULTI-DAY TOUR FIELDS
+        isMultidayTour: document.getElementById('booking-multiday-tour') ? document.getElementById('booking-multiday-tour').checked : false,
+        endDate: document.getElementById('booking-end-date') ? document.getElementById('booking-end-date').value : null,
+        accommodation: document.getElementById('booking-accommodation') ? document.getElementById('booking-accommodation').value : '',
+        multidayGroupId: null  // Will be set when creating multi-day tours
     };
 
     if (newStatus === 'Completed' && oldStatus !== 'Completed' && bookingData.paymentStatus === 'Unpaid') {
@@ -2180,6 +4204,17 @@ function finalizeSaveBooking(bookingData, oldStatus = null) {
     }
     debouncedSaveState();
 
+    // Handle Google Calendar sync if enabled
+    if (state.settings.googleCalendarEnabled && 
+        state.settings.googleCalendarAutoSync && 
+        gapi.auth2?.getAuthInstance()?.isSignedIn.get()) {
+        
+        syncWithGoogleCalendar([bookingData.id]).catch(error => {
+            console.error('Failed to sync booking with Google Calendar:', error);
+            showToast('Warning: Failed to sync with Google Calendar');
+        });
+    }
+
     if (bookingData.status === 'Cancelled' && oldStatus !== 'Cancelled') {
         checkWaitingListFor(bookingData);
     }
@@ -2194,9 +4229,27 @@ function deleteBooking(bookingId, fromModal = 'booking') {
         title: 'Delete Booking', message: 'Are you sure you want to delete this booking?',
         buttons: [
             { text: 'Cancel', class: btnSecondary },
-            { text: 'Delete', class: btnDanger, onClick: () => {
+            { text: 'Delete', class: btnDanger, onClick: async () => {
                 const bookingToDelete = state.bookings.find(b => b.id === bookingId);
-                if (bookingToDelete && bookingToDelete.transactionId) {
+                if (!bookingToDelete) return;
+
+                // Handle Google Calendar deletion if enabled
+                if (state.settings.googleCalendarEnabled && 
+                    state.settings.googleCalendarAutoSync && 
+                    gapi.auth2?.getAuthInstance()?.isSignedIn.get() &&
+                    bookingToDelete.googleEventId) {
+                    try {
+                        await gapi.client.calendar.events.delete({
+                            calendarId: 'primary',
+                            eventId: bookingToDelete.googleEventId
+                        });
+                    } catch (error) {
+                        console.error('Failed to delete Google Calendar event:', error);
+                        showToast('Warning: Failed to delete Google Calendar event');
+                    }
+                }
+                
+                if (bookingToDelete.transactionId) {
                     state.transactions = state.transactions.filter(t => t.id !== bookingToDelete.transactionId);
                 }
                 state.bookings = state.bookings.filter(b => b.id !== bookingId);
@@ -2217,10 +4270,50 @@ function saveCustomer(event) {
     event.preventDefault();
     const customerId = document.getElementById('customer-id').value;
     const customerName = document.getElementById('customer-name').value.trim();
-    const email = document.getElementById('customer-email').value;
+    const email = document.getElementById('customer-email').value.trim();
+    const phone = document.getElementById('customer-phone').value.trim();
     const lessonCredits = parseFloat(document.getElementById('customer-credits').value) || 0;
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // SECURITY: Validate inputs using security module
+    if (typeof validateInput === 'function') {
+        // Validate name
+        const nameValidation = validateInput(customerName, 'name');
+        if (!nameValidation.valid) {
+            showDialog({
+                title: 'Invalid Name',
+                message: nameValidation.message,
+                buttons: [{ text: 'OK', class: btnPrimary }]
+            });
+            return;
+        }
+
+        // Validate email if provided
+        if (email) {
+            const emailValidation = validateInput(email, 'email');
+            if (!emailValidation.valid) {
+                showDialog({
+                    title: 'Invalid Email',
+                    message: emailValidation.message,
+                    buttons: [{ text: 'OK', class: btnPrimary }]
+                });
+                return;
+            }
+        }
+
+        // Validate phone if provided
+        if (phone) {
+            const phoneValidation = validateInput(phone, 'phone');
+            if (!phoneValidation.valid) {
+                showDialog({
+                    title: 'Invalid Phone',
+                    message: phoneValidation.message,
+                    buttons: [{ text: 'OK', class: btnPrimary }]
+                });
+                return;
+            }
+        }
+    } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        // Fallback validation if security module not loaded
         showDialog({
             title: 'Invalid Email',
             message: 'Please enter a valid email address.',
@@ -2301,16 +4394,45 @@ function deleteCustomer(customerId) {
     });
 }
 
+function toggleGuideFields() {
+    const staffType = document.getElementById('staff-type').value;
+    const guideSection = document.getElementById('guide-qualifications-section');
+    if (staffType === 'GUIDE') {
+        guideSection.classList.remove('hidden');
+    } else {
+        guideSection.classList.add('hidden');
+    }
+}
+
 function saveStaff(event) {
     event.preventDefault();
     const staffId = document.getElementById('staff-id').value;
+    const staffType = document.getElementById('staff-type').value;
+
     const staffData = {
         id: staffId || `staff_${generateUUID()}`,
         name: document.getElementById('staff-name').value,
         email: document.getElementById('staff-email').value,
         phone: document.getElementById('staff-phone').value,
-        staff_type: document.getElementById('staff-type').value,
+        staff_type: staffType,
     };
+
+    // Add guide qualifications if this is a tour guide
+    if (staffType === 'GUIDE') {
+        staffData.guide_qualifications = {
+            languages: document.getElementById('guide-languages') ?
+                document.getElementById('guide-languages').value.split(',').map(l => l.trim()).filter(l => l) : [],
+            specializations: document.getElementById('guide-specializations') ?
+                document.getElementById('guide-specializations').value.split(',').map(s => s.trim()).filter(s => s) : [],
+            certifications: document.getElementById('guide-certifications') ?
+                document.getElementById('guide-certifications').value : '',
+            certificationExpiry: document.getElementById('guide-certification-expiry') ?
+                document.getElementById('guide-certification-expiry').value : null,
+            rating: document.getElementById('guide-rating') ?
+                parseFloat(document.getElementById('guide-rating').value) || 0 : 0,
+        };
+    }
+
     if (staffId) {
          const index = state.staff.findIndex(s => s.id === staffId);
          if (index !== -1) state.staff[index] = { ...state.staff[index], ...staffData };
@@ -2464,9 +4586,190 @@ function saveProgressNote(customerId) {
     return true;
 }
 
+// FEATURE: Phase 2 - Student Progress Dashboard
+function calculateStudentProgress(customerId) {
+    const customer = state.customers.find(c => c.id === customerId);
+    if (!customer || !customer.driving_school_details || !customer.driving_school_details.progress_notes) {
+        return {
+            masteredSkills: [],
+            inProgressSkills: [],
+            notStartedSkills: [],
+            progressPercentage: 0,
+            totalSkills: 0,
+            estimatedWeeksToReady: null
+        };
+    }
+
+    const progressNotes = customer.driving_school_details.progress_notes;
+    const allSkills = [];
+    const coveredSkills = new Map(); // skill -> count
+
+    // Collect all skills and count how many times each was covered
+    for (const level in skillLevels) {
+        skillLevels[level].skills.forEach(skill => {
+            allSkills.push({ skill, category: level });
+            coveredSkills.set(skill, 0);
+        });
+    }
+
+    // Count skill coverage
+    progressNotes.forEach(note => {
+        if (note.skillsCovered) {
+            note.skillsCovered.forEach(s => {
+                const count = coveredSkills.get(s.skill) || 0;
+                coveredSkills.set(s.skill, count + 1);
+            });
+        }
+    });
+
+    // Categorize skills
+    const masteredSkills = []; // covered 2+ times
+    const inProgressSkills = []; // covered 1 time
+    const notStartedSkills = []; // never covered
+
+    allSkills.forEach(({ skill, category }) => {
+        const count = coveredSkills.get(skill) || 0;
+        const skillData = { skill, category, count };
+
+        if (count >= 2) {
+            masteredSkills.push(skillData);
+        } else if (count === 1) {
+            inProgressSkills.push(skillData);
+        } else {
+            notStartedSkills.push(skillData);
+        }
+    });
+
+    const totalSkills = allSkills.length;
+    const progressPercentage = totalSkills > 0 ? Math.round((masteredSkills.length / totalSkills) * 100) : 0;
+
+    // Calculate estimated weeks to ready (rough estimate)
+    const completedLessons = progressNotes.length;
+    const skillsPerLesson = completedLessons > 0 ? masteredSkills.length / completedLessons : 0;
+    const remainingSkills = totalSkills - masteredSkills.length;
+    const estimatedLessonsNeeded = skillsPerLesson > 0 ? Math.ceil(remainingSkills / skillsPerLesson) : null;
+    const estimatedWeeksToReady = estimatedLessonsNeeded ? Math.ceil(estimatedLessonsNeeded / 2) : null; // Assume 2 lessons/week
+
+    return {
+        masteredSkills,
+        inProgressSkills,
+        notStartedSkills,
+        progressPercentage,
+        totalSkills,
+        completedLessons,
+        estimatedWeeksToReady
+    };
+}
+
+function renderStudentProgressDashboard(customerId) {
+    const container = document.getElementById('progress-dashboard-container');
+    const progress = calculateStudentProgress(customerId);
+
+    if (progress.completedLessons === 0) {
+        container.innerHTML = `
+            <div class="p-6 bg-blue-50 border-l-4 border-blue-500 rounded text-center">
+                <h3 class="text-lg font-semibold text-blue-900 mb-2">📘 Start Tracking Progress</h3>
+                <p class="text-blue-700">Add lesson notes below to start tracking this student's progress and see their dashboard here.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const progressColor = progress.progressPercentage >= 80 ? 'green' : progress.progressPercentage >= 50 ? 'blue' : 'orange';
+
+    container.innerHTML = `
+        <!-- Overall Progress -->
+        <div class="bg-gradient-to-r from-${progressColor}-50 to-${progressColor}-100 rounded-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-${progressColor}-900">${progress.progressPercentage}% Complete</h3>
+                    <p class="text-${progressColor}-700 mt-1">${progress.masteredSkills.length} of ${progress.totalSkills} skills mastered</p>
+                </div>
+                <div class="text-5xl">${progress.progressPercentage >= 80 ? '🎉' : progress.progressPercentage >= 50 ? '📚' : '🚀'}</div>
+            </div>
+            <div class="w-full bg-white rounded-full h-4 mb-2">
+                <div class="bg-${progressColor}-600 h-4 rounded-full transition-all duration-500" style="width: ${progress.progressPercentage}%"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mt-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-green-700">${progress.masteredSkills.length}</div>
+                    <div class="text-xs text-gray-600">Mastered ✅</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-yellow-700">${progress.inProgressSkills.length}</div>
+                    <div class="text-xs text-gray-600">In Progress 🟡</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-500">${progress.notStartedSkills.length}</div>
+                    <div class="text-xs text-gray-600">Not Started ⭕</div>
+                </div>
+            </div>
+            ${progress.estimatedWeeksToReady ? `
+                <div class="mt-4 p-3 bg-white/50 rounded text-center">
+                    <span class="text-sm font-medium text-${progressColor}-900">
+                        📅 Estimated test-ready: ${progress.estimatedWeeksToReady} weeks
+                    </span>
+                </div>
+            ` : ''}
+        </div>
+
+        <!-- Skills by Category -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            ${Object.keys(skillLevels).map(level => {
+                const categorySkills = [
+                    ...progress.masteredSkills.filter(s => s.category === level),
+                    ...progress.inProgressSkills.filter(s => s.category === level),
+                    ...progress.notStartedSkills.filter(s => s.category === level)
+                ];
+                const masteredCount = progress.masteredSkills.filter(s => s.category === level).length;
+                const totalInCategory = categorySkills.length;
+                const categoryProgress = totalInCategory > 0 ? Math.round((masteredCount / totalInCategory) * 100) : 0;
+
+                return `
+                    <div class="bg-white rounded-lg border p-4">
+                        <h4 class="font-semibold text-gray-900 mb-2">${skillLevels[level].title}</h4>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${categoryProgress}%"></div>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-2">${masteredCount}/${totalInCategory} skills mastered</div>
+                        <div class="space-y-1 max-h-32 overflow-y-auto">
+                            ${categorySkills.slice(0, 5).map(s => {
+                                const icon = s.count >= 2 ? '✅' : s.count === 1 ? '🟡' : '⭕';
+                                const textColor = s.count >= 2 ? 'text-green-700' : s.count === 1 ? 'text-yellow-700' : 'text-gray-400';
+                                return `<div class="text-xs ${textColor}">${icon} ${s.skill}</div>`;
+                            }).join('')}
+                            ${categorySkills.length > 5 ? `<div class="text-xs text-gray-400">+${categorySkills.length - 5} more...</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+
+        <!-- Next Skills to Learn -->
+        ${progress.notStartedSkills.length > 0 ? `
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 rounded p-4">
+                <h4 class="font-semibold text-yellow-900 mb-2">📋 Next Skills to Focus On:</h4>
+                <ul class="text-sm text-yellow-800 space-y-1">
+                    ${progress.notStartedSkills.slice(0, 5).map(s =>
+                        `<li>• ${s.skill} <span class="text-xs text-yellow-600">(${skillLevels[s.category].title})</span></li>`
+                    ).join('')}
+                </ul>
+            </div>
+        ` : `
+            <div class="bg-green-50 border-l-4 border-green-400 rounded p-4 text-center">
+                <h4 class="font-semibold text-green-900 mb-2">🎉 All Skills Covered!</h4>
+                <p class="text-sm text-green-700">This student has been introduced to all skills. Continue practicing for mastery!</p>
+            </div>
+        `}
+    `;
+}
+
 function renderProgressLog(customerId) {
     const customer = state.customers.find(c => c.id === customerId);
     const container = document.getElementById('progress-log-list');
+
+    // FEATURE: Phase 2 - Render Progress Dashboard
+    renderStudentProgressDashboard(customerId);
 
     if (!customer || !customer.driving_school_details || !customer.driving_school_details.progress_notes || customer.driving_school_details.progress_notes.length === 0) {
         container.innerHTML = '<p class="text-center text-gray-500">No progress notes have been logged for this customer yet.</p>';
@@ -2476,7 +4779,7 @@ function renderProgressLog(customerId) {
     const sortedNotes = customer.driving_school_details.progress_notes.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     container.innerHTML = sortedNotes.map(note => {
-        const lessonDate = parseYYYYMMDD(note.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
+        const lessonDate = safeDateFormat(note.date, { year: 'numeric', month: 'long', day: 'numeric' });
         const skillsHtml = note.skillsCovered && note.skillsCovered.length > 0
             ? `<ul class="list-disc list-inside mt-2 text-sm text-gray-600">${note.skillsCovered.map(s => `<li>${sanitizeHTML(s.skill)}</li>`).join('')}</ul>`
             : '<p class="text-sm text-gray-500 mt-2">No specific skills were tagged for this lesson.</p>';
@@ -2580,6 +4883,50 @@ function closeDialog() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
+// FEATURE: Show keyboard shortcuts help modal (Phase 1 Improvement)
+function showKeyboardShortcutsHelp() {
+    const shortcutsHTML = `
+        <div style="max-height: 400px; overflow-y: auto;">
+            <h4 class="font-semibold mb-3 text-lg">Navigation</h4>
+            <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">S</kbd> Dashboard/Summary</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">B</kbd> Billing View</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">D</kbd> Day View</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">W</kbd> Week View</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">M</kbd> Month View</div>
+            </div>
+
+            <h4 class="font-semibold mb-3 text-lg">Quick Actions</h4>
+            <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">N</kbd> New Booking</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">C</kbd> New Customer</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">Ctrl+S</kbd> Quick Save</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">Esc</kbd> Close Modal</div>
+            </div>
+
+            <h4 class="font-semibold mb-3 text-lg">Calendar Navigation</h4>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">←</kbd> Previous Day/Week/Month</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">→</kbd> Next Day/Week/Month</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">T</kbd> Jump to Today</div>
+                <div><kbd class="px-2 py-1 bg-gray-200 rounded">?</kbd> Show This Help</div>
+            </div>
+        </div>
+    `;
+
+    showDialog({
+        title: '⌨️ Keyboard Shortcuts',
+        message: shortcutsHTML,
+        buttons: [{ text: 'Got it!', class: btnPrimary }]
+    });
+
+    // Update dialog to support HTML content
+    const messageEl = document.getElementById('dialog-message');
+    if (messageEl) {
+        messageEl.innerHTML = shortcutsHTML;
+    }
+}
+
 function openBookingModal(date, bookingId = null, startTime = null, endTime = null) {
     const today = new Date(); today.setHours(0,0,0,0);
     if (!bookingId && parseYYYYMMDD(date) < today) {
@@ -2605,6 +4952,10 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
     const leftActionsContainer = document.getElementById('booking-modal-actions-left');
     leftActionsContainer.innerHTML = '';
 
+    // FEATURE: Show/hide recurring section (Phase 1 Improvement)
+    const recurringSection = document.getElementById('recurring-booking-section');
+    const recurringCheckbox = document.getElementById('booking-recurring');
+
     if (bookingId) {
         document.getElementById('booking-modal-title').textContent = 'Edit Booking';
         const booking = state.bookings.find(b => b.id === bookingId);
@@ -2619,12 +4970,34 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
             document.getElementById('booking-pickup').value = booking.pickup || '';
             document.getElementById('booking-status').value = booking.status;
             document.getElementById('booking-payment-status').value = booking.paymentStatus;
+
+            // Populate tour-specific fields if they exist
+            if (document.getElementById('booking-group-size')) {
+                document.getElementById('booking-group-size').value = booking.groupSize || 1;
+            }
+            if (document.getElementById('booking-participants')) {
+                document.getElementById('booking-participants').value = booking.participants ? booking.participants.join('\n') : '';
+            }
+            if (document.getElementById('booking-special-requirements')) {
+                document.getElementById('booking-special-requirements').value = booking.specialRequirements || '';
+            }
+            if (document.getElementById('booking-waiver-signed')) {
+                document.getElementById('booking-waiver-signed').checked = booking.waiverSigned || false;
+                const waiverDateEl = document.getElementById('booking-waiver-date');
+                if (booking.waiverSignedDate && waiverDateEl) {
+                    const waiverDate = new Date(booking.waiverSignedDate).toLocaleDateString('en-GB');
+                    waiverDateEl.textContent = `Signed on: ${waiverDate}`;
+                }
+            }
+
             leftActionsContainer.innerHTML = `
                 <button type="button" onclick="copySmsReminder('${bookingId}')" class="${btnSecondary}">Copy SMS Reminder</button>
                 <button type="button" onclick="exportToGoogleCalendar('${bookingId}')" class="${btnGreen}">Add to Google Calendar</button>
                 <button type="button" onclick="deleteBooking('${bookingId}', 'booking')" class="${btnDanger}">Delete</button>
             `;
         }
+        // Hide recurring section for existing bookings
+        if (recurringSection) recurringSection.classList.add('hidden');
     } else {
         document.getElementById('booking-modal-title').textContent = 'New Booking';
         document.getElementById('booking-id').value = '';
@@ -2632,6 +5005,13 @@ function openBookingModal(date, bookingId = null, startTime = null, endTime = nu
         document.getElementById('booking-start-time').value = startTime || '09:00';
         document.getElementById('booking-status').value = 'Scheduled';
         document.getElementById('booking-payment-status').value = 'Unpaid';
+        // Show recurring section for new bookings and reset it
+        if (recurringSection) recurringSection.classList.remove('hidden');
+        if (recurringCheckbox) recurringCheckbox.checked = false;
+        const recurringOptions = document.getElementById('recurring-options');
+        const recurringPreview = document.getElementById('recurring-preview');
+        if (recurringOptions) recurringOptions.classList.add('hidden');
+        if (recurringPreview) recurringPreview.classList.add('hidden');
     }
 
     handleServiceSelectionChange();
@@ -3021,7 +5401,7 @@ function populateProgressDateSelect(customerId) {
 
     if (relevantBookings.length > 0) {
         const options = relevantBookings.map(b => {
-            const displayDate = parseYYYYMMDD(b.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+            const displayDate = safeDateFormat(b.date, { weekday: 'short', day: 'numeric', month: 'short' });
             return `<option value="${b.date}">${displayDate} (${b.startTime})</option>`;
         }).join('');
         dateContainer.innerHTML = `
@@ -3171,11 +5551,32 @@ function openStaffModal(staffId = null) {
             document.getElementById('staff-email').value = staff.email || '';
             document.getElementById('staff-phone').value = staff.phone || '';
             document.getElementById('staff-type').value = staff.staff_type || 'INSTRUCTOR';
+
+            // Populate guide qualifications if available
+            if (staff.staff_type === 'GUIDE' && staff.guide_qualifications) {
+                const quals = staff.guide_qualifications;
+                if (document.getElementById('guide-languages')) {
+                    document.getElementById('guide-languages').value = (quals.languages || []).join(', ');
+                }
+                if (document.getElementById('guide-specializations')) {
+                    document.getElementById('guide-specializations').value = (quals.specializations || []).join(', ');
+                }
+                if (document.getElementById('guide-certifications')) {
+                    document.getElementById('guide-certifications').value = quals.certifications || '';
+                }
+                if (document.getElementById('guide-certification-expiry')) {
+                    document.getElementById('guide-certification-expiry').value = quals.certificationExpiry || '';
+                }
+                if (document.getElementById('guide-rating')) {
+                    document.getElementById('guide-rating').value = quals.rating || 0;
+                }
+            }
         }
     } else {
         document.getElementById('staff-modal-title').textContent = 'New Staff Member';
         document.getElementById('staff-id').value = '';
     }
+    toggleGuideFields();
     modal.classList.remove('hidden');
     setTimeout(() => modal.querySelector('.modal').classList.remove('scale-95', 'opacity-0'), 10);
 }
@@ -3267,7 +5668,7 @@ function openInvoiceModal(customerId) {
         const description = service ? service.service_name : 'Lesson';
         return `
             <tr>
-                <td class="py-2 px-4 print:py-1 print:px-2 border-b">${parseYYYYMMDD(b.date).toLocaleDateString('en-GB')}</td>
+                <td class="py-2 px-4 print:py-1 print:px-2 border-b">${safeDateFormat(b.date)}</td>
                 <td class="py-2 px-4 print:py-1 print:px-2 border-b">${sanitizeHTML(description)}</td>
                 <td class="py-2 px-4 print:py-1 print:px-2 border-b text-right">€${(b.fee || 0).toFixed(2)}</td>
             </tr>
@@ -3275,12 +5676,23 @@ function openInvoiceModal(customerId) {
     }).join('');
 
     contentEl.innerHTML = `
+        <!-- FEATURE: Phase 3 - Enhanced Invoice Header with Logo -->
         <div class="flex justify-between items-start pb-4 print:pb-2 border-b-2 border-gray-800">
-            <div>
-                <h1 class="text-3xl print:text-2xl font-bold text-gray-900">${sanitizeHTML(state.settings.instructorName)}</h1>
-                <p class="text-gray-600 whitespace-pre-line">${sanitizeHTML(state.settings.instructorAddress)}</p>
+            <div class="flex items-start gap-4">
+                ${state.settings.invoiceLogo ? `
+                    <img src="${sanitizeHTML(state.settings.invoiceLogo)}" alt="Company Logo" class="h-16 w-16 object-contain print:h-12 print:w-12">
+                ` : ''}
+                <div>
+                    <h1 class="text-3xl print:text-2xl font-bold text-gray-900">${sanitizeHTML(state.settings.instructorName)}</h1>
+                    <p class="text-gray-600 whitespace-pre-line text-sm">${sanitizeHTML(state.settings.instructorAddress)}</p>
+                    ${state.settings.vatNumber ? `<p class="text-gray-500 text-sm mt-1">VAT: ${sanitizeHTML(state.settings.vatNumber)}</p>` : ''}
+                    ${state.settings.invoiceEmail ? `<p class="text-gray-500 text-sm">Email: ${sanitizeHTML(state.settings.invoiceEmail)}</p>` : ''}
+                    ${state.settings.invoicePhone ? `<p class="text-gray-500 text-sm">Phone: ${sanitizeHTML(state.settings.invoicePhone)}</p>` : ''}
+                </div>
             </div>
-            <h2 class="text-4xl print:text-3xl font-bold text-gray-500 uppercase">Invoice</h2>
+            <div class="text-right">
+                <h2 class="text-4xl print:text-3xl font-bold text-indigo-600 uppercase">Invoice</h2>
+            </div>
         </div>
         <div class="flex justify-between mt-6 print:mt-4">
             <div>
@@ -3317,10 +5729,24 @@ function openInvoiceModal(customerId) {
                 </div>
             </div>
         </div>
+        <!-- FEATURE: Phase 3 - Enhanced Invoice Footer -->
         <div class="mt-10 print:mt-6 pt-6 print:pt-4 border-t text-sm text-gray-600">
-            <h3 class="font-semibold text-gray-800 mb-2">Payment Details</h3>
-            <p class="whitespace-pre-line">${sanitizeHTML(state.settings.paymentDetails || 'N/A')}</p>
-            <p class="mt-4 print:mt-2">Thank you for your business!</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 print:gap-4">
+                <div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Payment Instructions</h3>
+                    <p class="whitespace-pre-line text-xs">${sanitizeHTML(state.settings.paymentDetails || 'Please contact us for payment details.')}</p>
+                </div>
+                ${state.settings.invoiceTerms ? `
+                    <div>
+                        <h3 class="font-semibold text-gray-800 mb-2">Terms & Conditions</h3>
+                        <p class="whitespace-pre-line text-xs">${sanitizeHTML(state.settings.invoiceTerms)}</p>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="mt-6 print:mt-4 pt-4 print:pt-2 border-t text-center">
+                <p class="text-indigo-600 font-semibold">${sanitizeHTML(state.settings.invoiceThankYou || 'Thank you for your business!')}</p>
+                ${state.settings.invoiceFooterNote ? `<p class="text-xs text-gray-500 mt-1">${sanitizeHTML(state.settings.invoiceFooterNote)}</p>` : ''}
+            </div>
         </div>
     `;
 
@@ -3368,12 +5794,35 @@ function openCompletionModal(bookingData) {
     } else {
         creditBtn.onclick = () => {
             const customerIndex = state.customers.findIndex(s => s.id === customer.id);
-            state.customers[customerIndex].driving_school_details.lesson_credits -= durationHours;
+            const customer = state.customers[customerIndex];
 
-            bookingData.paymentStatus = 'Paid (Credit)';
-            finalizeSaveBooking(bookingData);
-            showToast(`Deducted ${durationHours.toFixed(1)} hours from ${customer.name}. New balance: ${state.customers[customerIndex].driving_school_details.lesson_credits.toFixed(1)} hours.`);
-            closeCompletionModal();
+            // SAFETY: Ensure driving_school_details exists
+            if (!customer.driving_school_details) {
+                customer.driving_school_details = {
+                    license_number: '',
+                    progress_notes: [],
+                    lesson_credits: 0
+                };
+            }
+
+            const currentCredits = customer.driving_school_details.lesson_credits || 0;
+
+            // SAFETY: Only deduct if customer has enough credits (double-check)
+            if (currentCredits >= durationHours) {
+                customer.driving_school_details.lesson_credits = currentCredits - durationHours;
+                bookingData.paymentStatus = 'Paid (Credit)';
+                finalizeSaveBooking(bookingData);
+                showToast(`Deducted ${durationHours.toFixed(1)} hours from ${customer.name}. New balance: ${customer.driving_school_details.lesson_credits.toFixed(1)} hours.`);
+                closeCompletionModal();
+            } else {
+                // Should never happen if UI is correct, but safety check
+                showDialog({
+                    title: 'Insufficient Credits',
+                    message: `Customer only has ${currentCredits.toFixed(1)} hours but needs ${durationHours.toFixed(1)} hours. Please check the account.`,
+                    buttons: [{ text: 'OK', class: btnPrimary }]
+                });
+                closeCompletionModal();
+            }
         };
     }
 
@@ -3430,13 +5879,54 @@ function toLocalDateString(date) {
 
 
 function timeToMinutes(timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    // SAFETY: Validate input exists and is a string
+    if (!timeStr || typeof timeStr !== 'string') {
+        console.warn('timeToMinutes: Invalid time string:', timeStr);
+        return 0;
+    }
+
+    // SAFETY: Validate format (should be HH:MM)
+    const parts = timeStr.split(':');
+    if (parts.length !== 2) {
+        console.warn('timeToMinutes: Invalid time format (expected HH:MM):', timeStr);
+        return 0;
+    }
+
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+
+    // SAFETY: Validate numbers
+    if (isNaN(hours) || isNaN(minutes)) {
+        console.warn('timeToMinutes: Time contains non-numeric values:', timeStr);
+        return 0;
+    }
+
+    // SAFETY: Validate ranges (allow 0-23 for hours, 0-59 for minutes)
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        console.warn('timeToMinutes: Time out of valid range:', timeStr);
+        // Still calculate but warn - allows for flexibility
+        return Math.max(0, hours * 60 + minutes);
+    }
+
     return hours * 60 + minutes;
 }
 
 function minutesToTime(totalMinutes) {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+    // SAFETY: Validate input is a number
+    if (typeof totalMinutes !== 'number' || isNaN(totalMinutes)) {
+        console.warn('minutesToTime: Invalid minutes value:', totalMinutes);
+        return '00:00';
+    }
+
+    // SAFETY: Clamp to valid range (0 to 24*60-1 = 1439 minutes)
+    const clampedMinutes = Math.max(0, Math.min(totalMinutes, 24 * 60 - 1));
+
+    if (clampedMinutes !== totalMinutes) {
+        console.warn('minutesToTime: Minutes clamped to valid range. Original:', totalMinutes, 'Clamped:', clampedMinutes);
+    }
+
+    const hours = Math.floor(clampedMinutes / 60);
+    const minutes = clampedMinutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
@@ -3557,6 +6047,31 @@ function handleServiceSelectionChange() {
     const newEndTime = minutesToTime(timeToMinutes(startTime) + service.duration_minutes);
     document.getElementById('booking-end-time').value = newEndTime;
 
+    // Show/hide tour-specific sections based on service type
+    const isTour = service.service_type === 'TOUR';
+    document.getElementById('tour-group-section').classList.toggle('hidden', !isTour);
+    document.getElementById('tour-details-section').classList.toggle('hidden', !isTour);
+    document.getElementById('tour-waiver-section').classList.toggle('hidden', !isTour);
+    document.getElementById('tour-multiday-section').classList.toggle('hidden', !isTour);
+
+    // Populate tour details if available
+    if (isTour) {
+        const descElement = document.getElementById('tour-description');
+        if (descElement && service.description) {
+            descElement.textContent = service.description;
+        }
+
+        // Display photo gallery
+        if (service.photos && service.photos.length > 0) {
+            const galleryElement = document.getElementById('tour-photos-gallery');
+            galleryElement.innerHTML = service.photos.map((photo, index) => {
+                return `<div class="aspect-square rounded overflow-hidden bg-gray-200">
+                    <img src="${sanitizeHTML(photo)}" alt="Tour photo ${index + 1}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/200?text=Photo+${index + 1}'">
+                </div>`;
+            }).join('');
+        }
+    }
+
     const fee = calculateBookingFee(serviceId);
     document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
 }
@@ -3565,21 +6080,62 @@ function handleStartTimeChange() {
     handleServiceSelectionChange();
 }
 
-function calculateBookingFee(serviceId) {
+function calculateBookingFee(serviceId, groupSize = null) {
     const service = state.services.find(s => s.id === serviceId);
     if (!service) return 0;
 
+    // Get group size from input if not provided (for tour bookings)
+    if (groupSize === null && service.service_type === 'TOUR') {
+        const groupSizeInput = document.getElementById('booking-group-size');
+        groupSize = groupSizeInput ? parseInt(groupSizeInput.value) || 1 : 1;
+    } else {
+        groupSize = groupSize || 1;
+    }
+
     const rules = service.pricing_rules || {};
 
-    if (rules.type === 'fixed') {
-        return service.base_price || 0;
+    // FIXED PRICING
+    if (rules.type === 'fixed' || !rules.type) {
+        const basePrice = service.base_price || 0;
+        return basePrice * groupSize;
     }
 
+    // TIERED PRICING - Find the applicable tier based on group size
     if (rules.type === 'tiered' && rules.tiers && rules.tiers.length > 0) {
-        return rules.tiers[0].price || 0;
+        // Sort tiers by minSize to ensure proper ordering
+        const sortedTiers = [...rules.tiers].sort((a, b) => a.minSize - b.minSize);
+
+        // Find the tier that matches the group size
+        const applicableTier = sortedTiers.find(tier =>
+            groupSize >= tier.minSize && groupSize <= tier.maxSize
+        );
+
+        if (applicableTier) {
+            return applicableTier.price * groupSize;
+        }
+
+        // Fallback to the highest tier if group size exceeds all defined tiers
+        const highestTier = sortedTiers[sortedTiers.length - 1];
+        return highestTier.price * groupSize;
     }
 
-    return service.base_price || 0;
+    return (service.base_price || 0) * groupSize;
+}
+
+function updateGroupPricing() {
+    const serviceId = document.getElementById('booking-service').value;
+    const fee = calculateBookingFee(serviceId);
+    document.getElementById('calculated-fee').textContent = `€${fee.toFixed(2)}`;
+}
+
+function toggleMultidayOptions() {
+    const checkbox = document.getElementById('booking-multiday-tour');
+    const options = document.getElementById('multiday-options');
+    if (checkbox && checkbox.checked) {
+        options.classList.remove('hidden');
+    } else {
+        options.classList.add('hidden');
+    }
 }
 
 function updateStaffAvailability(date) {
@@ -3884,7 +6440,7 @@ function copySmsReminder(bookingId) {
     let message = state.settings.smsTemplate || 'Hi [CustomerFirstName], this is a friendly reminder for your lesson on [LessonDate] at [LessonTime]. See you then! From [InstructorName].';
 
     const customerFirstName = customer.name.split(' ')[0];
-    const lessonDate = parseYYYYMMDD(booking.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const lessonDate = safeDateFormat(booking.date, { weekday: 'long', day: 'numeric', month: 'long' });
     const lessonTime = booking.startTime;
     const instructorName = state.settings.instructorName;
 
@@ -3912,21 +6468,7 @@ function formatGoogleCalendarDateUTC(date, time) {
     return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
-function exportToGoogleCalendar(bookingId) {
-    const booking = state.bookings.find(b => b.id === bookingId);
-    if (!booking) return;
-    const customer = state.customers.find(c => c.id === booking.customerId);
-    const staff = state.staff.find(i => i.id === booking.staffId);
-    const resource = booking.resourceIds && booking.resourceIds.length > 0 ? state.resources.find(r => r.id === booking.resourceIds[0]) : null;
-    const service = state.services.find(s => s.id === booking.serviceId);
-
-    const title = `${service ? service.service_name : 'Booking'} with ${customer ? customer.name : 'Unknown'}`;
-    const dates = `${formatGoogleCalendarDateUTC(booking.date, booking.startTime)}/${formatGoogleCalendarDateUTC(booking.date, booking.endTime)}`;
-    let description = `Customer: ${customer ? customer.name : 'N/A'}\nStaff: ${staff ? staff.name : 'N/A'}\nResource: ${resource ? resource.resource_name : 'N/A'}\n\nStatus: ${booking.status}\nPayment: ${booking.paymentStatus}`;
-    const location = booking.pickup || '';
-    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${encodeURIComponent(dates)}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
-    window.open(url, '_blank');
-}
+// REMOVED: Old exportToGoogleCalendar implementation replaced with Phase 2 iCalendar export (line 527)
 
 function printInvoice() {
     window.print();
@@ -3969,7 +6511,7 @@ function exportSummaryToExcel() {
         const staff = state.staff.find(i => i.id === b.staffId)?.name || 'N/A';
         const resource = b.resourceIds && b.resourceIds.length > 0 ? state.resources.find(v => v.id === b.resourceIds[0])?.resource_name || 'N/A' : 'N/A';
         const service = state.services.find(s => s.id === b.serviceId)?.service_name || 'N/A';
-        const date = parseYYYYMMDD(b.date).toLocaleDateString('en-GB');
+        const date = safeDateFormat(b.date);
         const time = `${b.startTime} - ${b.endTime}`;
         const row = [date, time, customer, staff, resource, service, b.status, b.paymentStatus];
         csvContent += row.map(sanitizeCell).join(",") + "\r\n";
@@ -4136,6 +6678,8 @@ function handleRestore(event) {
                                     localStorage.setItem(key, JSON.stringify(data[key]));
                                 }
                             }
+                            // Prevent the legacy migration from running after a restore
+                            localStorage.setItem('migration_v3.0.0_complete', 'true');
                             showDialog({ title: 'Success', message: 'Data restored! App will reload.', buttons: [{ text: 'Reload', class: btnPrimary, onClick: () => location.reload() }] });
                         } else {
                             showDialog({
@@ -4287,6 +6831,58 @@ function getReportsData() {
     return { incomeByMonth, expensesByMonth, servicePopularityReport, topCustomersReport, staffPerformanceReport, resourceUtilisationReport, peakHoursReport, incomeExpenseReport, lessonPackagePopularityReport };
 }
 
+// Helper functions for reports view
+function handleDateRangeChange() {
+    generateCharts();
+    updateKPICards();
+}
+
+function handleDepartmentChange() {
+    generateCharts();
+    updateKPICards();
+}
+
+function toggleAnalysis() {
+    const container = document.getElementById('reports-analysis-container');
+    const output = document.getElementById('reports-analysis-output');
+    if (output.style.display === 'none') {
+        output.style.display = 'block';
+    } else {
+        output.style.display = 'none';
+    }
+}
+
+function updateKPICards() {
+    const { incomeByMonth, expensesByMonth } = getReportsData();
+    const bookings = state.bookings.filter(b => b.status === 'Completed' || b.status === 'Scheduled');
+
+    // Calculate totals
+    const totalRevenue = Object.values(incomeByMonth).reduce((a, b) => a + b, 0);
+    const totalExpenses = Object.values(expensesByMonth).reduce((a, b) => a + b, 0);
+    const netProfit = totalRevenue - totalExpenses;
+
+    // Update KPI cards
+    document.getElementById('kpi-revenue').textContent = `€${totalRevenue.toFixed(2)}`;
+    document.getElementById('kpi-expenses').textContent = `€${totalExpenses.toFixed(2)}`;
+    document.getElementById('kpi-profit').textContent = `€${netProfit.toFixed(2)}`;
+    document.getElementById('kpi-bookings').textContent = bookings.length;
+
+    // Calculate trend indicators (simplified - comparing to previous period)
+    const months = [...new Set([...Object.keys(incomeByMonth), ...Object.keys(expensesByMonth)])].sort();
+    if (months.length >= 2) {
+        const lastMonth = months[months.length - 1];
+        const prevMonth = months[months.length - 2];
+        const revenueTrend = ((incomeByMonth[lastMonth] || 0) - (incomeByMonth[prevMonth] || 0)) / (incomeByMonth[prevMonth] || 1) * 100;
+        const expenseTrend = ((expensesByMonth[lastMonth] || 0) - (expensesByMonth[prevMonth] || 0)) / (expensesByMonth[prevMonth] || 1) * 100;
+        const profitTrend = netProfit > 0 ? 5 : -5; // Placeholder
+
+        document.getElementById('kpi-revenue-trend').textContent = `${revenueTrend > 0 ? '↑' : '↓'} ${Math.abs(revenueTrend).toFixed(1)}%`;
+        document.getElementById('kpi-expenses-trend').textContent = `${expenseTrend > 0 ? '↑' : '↓'} ${Math.abs(expenseTrend).toFixed(1)}%`;
+        document.getElementById('kpi-profit-trend').textContent = `${profitTrend > 0 ? '↑' : '↓'} ${Math.abs(profitTrend).toFixed(1)}%`;
+        document.getElementById('kpi-bookings-trend').textContent = `↑ 0%`;
+    }
+}
+
 function generateOverdueReport() {
     const container = document.getElementById('overdue-payments-report');
     const overdueCustomers = getCustomerSummaries().filter(s => s.outstanding > 0);
@@ -4296,11 +6892,102 @@ function generateOverdueReport() {
         return;
     }
 
-    const tableRows = overdueCustomers.map(customer => {
-        return `<tr><td class="font-medium">${sanitizeHTML(customer.name)}</td><td class="text-center">${customer.bookingCount}</td><td class="text-right font-bold">€${customer.outstanding.toFixed(2)}</td></tr>`;
+    const tableRows = overdueCustomers.map((customer, index) => {
+        const rowClass = index % 2 === 0 ? 'table-row-alt' : '';
+        return `<tr class="${rowClass}"><td class="table-cell-name">${sanitizeHTML(customer.name)}</td><td class="table-cell-center">${customer.bookingCount}</td><td class="table-cell-amount">€${customer.outstanding.toFixed(2)}</td></tr>`;
     }).join('');
 
-    container.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-lg mb-8"><h3 class="text-lg font-bold mb-2">Customers with Outstanding Payments</h3><div class="overflow-x-auto mt-4"><table class="min-w-full bg-white rounded-md"><thead><tr class="bg-red-200"><th class="text-left">Customer</th><th class="text-center">Total Bookings</th><th class="text-right">Amount Due</th></tr></thead><tbody class="divide-y divide-red-200">${tableRows}</tbody></table></div></div>`;
+    container.innerHTML = `
+        <div class="alert-outstanding-payments">
+            <div class="alert-header">
+                <div class="alert-icon">⚠️</div>
+                <div class="alert-content">
+                    <h3 class="alert-title">Outstanding Payments</h3>
+                    <p class="alert-description">${overdueCustomers.length} customer(s) with pending balance</p>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table class="outstanding-table">
+                    <thead>
+                        <tr>
+                            <th class="th-name">Customer Name</th>
+                            <th class="th-center">Bookings</th>
+                            <th class="th-amount">Amount Due</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function getTourAnalytics() {
+    const tourBookings = state.bookings.filter(b => {
+        const service = state.services.find(s => s.id === b.serviceId);
+        return service && service.service_type === 'TOUR' && (b.status === 'Completed' || b.status === 'Scheduled');
+    });
+
+    const tourRevenue = tourBookings.reduce((sum, b) => sum + (b.fee || 0), 0);
+    const totalTours = tourBookings.length;
+    const totalParticipants = tourBookings.reduce((sum, b) => sum + (b.groupSize || 1), 0);
+    const avgGroupSize = totalTours > 0 ? (totalParticipants / totalTours).toFixed(1) : 0;
+
+    // Occupancy rates per service
+    const toursByService = {};
+    tourBookings.forEach(b => {
+        const service = state.services.find(s => s.id === b.serviceId);
+        if (service) {
+            if (!toursByService[service.service_name]) {
+                toursByService[service.service_name] = {
+                    count: 0,
+                    totalParticipants: 0,
+                    revenue: 0,
+                    maxCapacity: service.capacity || 50
+                };
+            }
+            toursByService[service.service_name].count++;
+            toursByService[service.service_name].totalParticipants += b.groupSize || 1;
+            toursByService[service.service_name].revenue += b.fee || 0;
+        }
+    });
+
+    // Guide performance with qualifications
+    const guidePerformance = {};
+    tourBookings.forEach(b => {
+        if (!guidePerformance[b.staffId]) {
+            const guide = state.staff.find(s => s.id === b.staffId);
+            guidePerformance[b.staffId] = {
+                name: guide ? guide.name : 'Unknown',
+                toursCount: 0,
+                totalParticipants: 0,
+                rating: guide && guide.guide_qualifications ? guide.guide_qualifications.rating || 0 : 0,
+                languages: guide && guide.guide_qualifications ? guide.guide_qualifications.languages || [] : [],
+                specializations: guide && guide.guide_qualifications ? guide.guide_qualifications.specializations || [] : []
+            };
+        }
+        guidePerformance[b.staffId].toursCount++;
+        guidePerformance[b.staffId].totalParticipants += b.groupSize || 1;
+    });
+
+    // Waiver compliance tracking
+    const totalTourBookings = tourBookings.length;
+    const waiverSigned = tourBookings.filter(b => b.waiverSigned).length;
+    const waiverCompliance = totalTourBookings > 0 ? ((waiverSigned / totalTourBookings) * 100).toFixed(1) : 0;
+
+    return {
+        totalTours,
+        totalParticipants,
+        avgGroupSize,
+        tourRevenue,
+        toursByService,
+        guidePerformance,
+        waiverSignedCount: waiverSigned,
+        waiverCompliance,
+        totalTourBookings
+    };
 }
 
 function generateCharts() {
@@ -4404,31 +7091,35 @@ function generateCharts() {
         });
 
         let statsHtml = `
-            <div>
-                <h4 class="font-semibold text-gray-700 mb-3 text-center border-b pb-2">
-                    Hours <span class="font-normal text-sm">${dateRangeStr}</span>
+            <div class="staff-stat-section">
+                <h4 class="stat-section-title">
+                    ⏰ Staff Hours <span class="stat-date-range">${dateRangeStr}</span>
                 </h4>
-                <div class="space-y-2">`;
+                <div class="stat-items-container">`;
 
         state.staff.forEach(staffMember => {
             const hours = staffWeeklyHours[staffMember.id] || 0;
+            const hoursPercentage = Math.min(100, (hours / 40) * 100); // Assuming 40 hour week is 100%
             statsHtml += `
-                <div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm">
-                    <span class="text-gray-800 font-medium">${sanitizeHTML(staffMember.name)}</span>
-                    <span class="font-bold text-xl text-indigo-600">${hours.toFixed(1)} hrs</span>
+                <div class="stat-item">
+                    <div class="stat-name">${sanitizeHTML(staffMember.name)}</div>
+                    <div class="stat-bar">
+                        <div class="stat-bar-fill" style="width: ${hoursPercentage}%"></div>
+                    </div>
+                    <div class="stat-value">${hours.toFixed(1)} hrs</div>
                 </div>`;
         });
 
-        statsHtml += `</div></div><div>
-                <h4 class="font-semibold text-gray-700 mb-3 text-center border-b pb-2">Time Off (All Time)</h4>
-                <div class="space-y-2">`;
+        statsHtml += `</div></div><div class="staff-stat-section">
+                <h4 class="stat-section-title">🏖️ Time Off (All Time)</h4>
+                <div class="stat-items-container">`;
 
         state.staff.forEach(staffMember => {
             const daysOff = staffTimeOff[staffMember.id] || 0;
             statsHtml += `
-                <div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm">
-                    <span class="text-gray-800 font-medium">${sanitizeHTML(staffMember.name)}</span>
-                    <span class="font-bold text-xl text-purple-600">${daysOff} ${daysOff === 1 ? 'day' : 'days'}</span>
+                <div class="stat-item">
+                    <div class="stat-name">${sanitizeHTML(staffMember.name)}</div>
+                    <div class="stat-value stat-value-days">${daysOff} ${daysOff === 1 ? 'day' : 'days'}</div>
                 </div>`;
         });
 
