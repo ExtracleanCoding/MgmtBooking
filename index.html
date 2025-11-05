@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ray Ryan Management System</title>
 
+    <!-- Content Security Policy -->
+    <!-- NOTE: Relaxed CSP to allow CDN resources. For production, consider hosting assets locally. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com https://api.perplexity.ai https://openrouter.ai;">
+
     <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
@@ -17,17 +21,38 @@
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="style.css">
 
+    <!-- Security Utilities - Load before main script -->
+    <script src="security.js"></script>
+
+    <!-- Google Calendar API -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="google-calendar.js"></script>
+
 </head>
-<body class="p-4 sm:p-6">
+<body class="app-surface p-4 sm:p-6">
 
     <div id="app" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
 
         <!-- Header -->
-        <header class="mb-8 p-4 flex justify-between items-center">
+        <header class="app-header mb-8 p-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
                 <h1 class="retro-title">Ray Ryan Management System</h1>
                 <p class="mt-2 text-lg text-gray-600">Unified Management Dashboard</p>
             </div>
+
+            <!-- FEATURE: Phase 2 - Global Search -->
+            <div class="flex-1 max-w-md">
+                <div class="relative">
+                    <input type="text" id="global-search" placeholder="Search customers, bookings... (Ctrl+F)"
+                           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           onkeyup="handleGlobalSearch(event)">
+                    <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <div id="search-results" class="hidden absolute z-50 mt-2 w-full max-w-md bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto"></div>
+            </div>
+
             <div id="digital-clock" class="text-right"></div>
         </header>
 
@@ -36,10 +61,10 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <!-- Navigation -->
-            <nav id="main-nav" class="lg:col-span-2 flex flex-col gap-3"></nav>
+            <nav id="main-nav" class="nav-shell lg:col-span-2 flex flex-col gap-3"></nav>
 
             <!-- Main Content Area -->
-            <main id="main-content" class="lg:col-span-10">
+            <main id="main-content" class="main-stage lg:col-span-10">
                 <div id="calendar-view" class="hidden"></div>
                 <div id="summary-view" class="hidden"></div>
                 <div id="billing-view" class="hidden"></div>
@@ -162,6 +187,97 @@
                     <label for="booking-pickup" class="block mb-1 text-sm font-medium">Pickup Location</label>
                     <input type="text" id="booking-pickup" class="w-full">
                 </div>
+
+                <!-- FEATURE: Group Size & Participants (Tour Feature) -->
+                <div id="tour-group-section" class="hidden p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                    <h4 class="text-sm font-semibold text-green-900 mb-3">👥 Group Details</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="booking-group-size" class="block mb-1 text-sm font-medium">Group Size</label>
+                            <input type="number" id="booking-group-size" min="1" max="200" value="1" class="w-full" onchange="updateGroupPricing()">
+                        </div>
+                        <div>
+                            <label for="booking-special-requirements" class="block mb-1 text-sm font-medium">Special Requirements</label>
+                            <input type="text" id="booking-special-requirements" placeholder="e.g., vegetarian, mobility access" class="w-full">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label for="booking-participants" class="block mb-1 text-sm font-medium">Participant Names (one per line)</label>
+                        <textarea id="booking-participants" rows="3" placeholder="Add participant names here..." class="w-full text-sm"></textarea>
+                    </div>
+                </div>
+
+                <!-- FEATURE: Tour Details (Itinerary & Photos) -->
+                <div id="tour-details-section" class="hidden p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <h4 class="text-sm font-semibold text-blue-900 mb-3">📋 Tour Details</h4>
+                    <div>
+                        <label class="text-sm font-medium text-blue-900">Description</label>
+                        <p id="tour-description" class="text-sm text-blue-800 mt-1"></p>
+                    </div>
+                    <div class="mt-3">
+                        <label class="text-sm font-medium text-blue-900">Photo Gallery</label>
+                        <div id="tour-photos-gallery" class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+                    </div>
+                </div>
+
+                <!-- FEATURE: Multi-Day Tour Support -->
+                <div id="tour-multiday-section" class="hidden p-4 bg-purple-50 border-l-4 border-purple-500 rounded">
+                    <div class="flex items-center mb-3">
+                        <input type="checkbox" id="booking-multiday-tour" class="mr-3" onchange="toggleMultidayOptions()">
+                        <label for="booking-multiday-tour" class="text-sm font-semibold text-purple-900">📅 Multi-Day Tour</label>
+                    </div>
+                    <div id="multiday-options" class="hidden space-y-3">
+                        <div>
+                            <label for="booking-end-date" class="block mb-1 text-sm font-medium">End Date</label>
+                            <input type="date" id="booking-end-date" class="w-full">
+                        </div>
+                        <div>
+                            <label for="booking-accommodation" class="block mb-1 text-sm font-medium">Accommodation Details</label>
+                            <textarea id="booking-accommodation" rows="2" placeholder="e.g., Hotel names, room numbers, meal info..." class="w-full text-sm"></textarea>
+                        </div>
+                        <div class="text-xs text-purple-700 bg-white p-2 rounded">
+                            <strong>Note:</strong> Multi-day tours will create a linked booking for each day with synchronized group and pricing information.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE: Waiver & Insurance Tracking -->
+                <div id="tour-waiver-section" class="hidden p-4 bg-amber-50 border-l-4 border-amber-500 rounded">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="booking-waiver-signed" class="mr-3">
+                        <label for="booking-waiver-signed" class="text-sm font-semibold text-amber-900">✅ Waiver/Insurance Agreement Signed</label>
+                    </div>
+                    <p class="text-xs text-amber-700 mt-2">Check this box to confirm that all participants have signed the required waiver and are covered by insurance.</p>
+                    <div id="booking-waiver-date" class="text-xs text-amber-600 mt-2"></div>
+                </div>
+
+                <!-- FEATURE: Recurring Bookings (Phase 1 Improvement) -->
+                <div id="recurring-booking-section" class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <div class="flex items-center mb-3">
+                        <input type="checkbox" id="booking-recurring" class="mr-2" onchange="toggleRecurringOptions()">
+                        <label for="booking-recurring" class="text-sm font-semibold text-blue-900">🔄 Create Recurring Booking</label>
+                    </div>
+                    <div id="recurring-options" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="recurring-type" class="block mb-1 text-xs font-medium text-gray-700">Repeat</label>
+                            <select id="recurring-type" class="w-full text-sm">
+                                <option value="weekly">Weekly</option>
+                                <option value="daily">Daily</option>
+                                <option value="biweekly">Bi-weekly (Every 2 weeks)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="recurring-count" class="block mb-1 text-xs font-medium text-gray-700">Number of Occurrences</label>
+                            <input type="number" id="recurring-count" class="w-full text-sm" value="4" min="1" max="52">
+                        </div>
+                        <div>
+                            <label for="recurring-until" class="block mb-1 text-xs font-medium text-gray-700">Or Until Date</label>
+                            <input type="date" id="recurring-until" class="w-full text-sm">
+                        </div>
+                    </div>
+                    <p class="text-xs text-blue-800 mt-2 hidden" id="recurring-preview">Will create bookings...</p>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="booking-status" class="block mb-1 text-sm font-medium">Booking Status</label>
@@ -260,6 +376,9 @@
                 <button id="summarize-progress-btn" class="btn btn-purple text-sm">✨ Summarize Progress</button>
             </div>
             <div class="p-6 space-y-6 overflow-y-auto">
+                <!-- FEATURE: Phase 2 - Student Progress Dashboard -->
+                <div id="progress-dashboard-container"></div>
+
                 <div id="progress-summary-container" class="hidden">
                     <h4 class="text-lg font-semibold text-gray-800 mb-2">AI Progress Summary</h4>
                     <div id="summary-output" class="ai-summary-container whitespace-pre-wrap"></div>
@@ -306,12 +425,42 @@
                 </div>
                 <div>
                     <label for="staff-type" class="block mb-1 text-sm font-medium text-gray-700">Staff Type</label>
-                    <select id="staff-type" required class="w-full">
+                    <select id="staff-type" required class="w-full" onchange="toggleGuideFields()">
                         <option value="INSTRUCTOR">Instructor</option>
                         <option value="GUIDE">Tour Guide</option>
                         <option value="ADMIN">Admin</option>
                     </select>
                 </div>
+
+                <!-- FEATURE: Guide Qualifications -->
+                <div id="guide-qualifications-section" class="hidden p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <h4 class="text-sm font-semibold text-blue-900 mb-3">📜 Guide Qualifications</h4>
+                    <div class="space-y-3">
+                        <div>
+                            <label for="guide-languages" class="block mb-1 text-sm font-medium">Languages Spoken (comma-separated)</label>
+                            <input type="text" id="guide-languages" placeholder="e.g., English, French, Spanish" class="w-full text-sm">
+                        </div>
+                        <div>
+                            <label for="guide-specializations" class="block mb-1 text-sm font-medium">Tour Specializations (comma-separated)</label>
+                            <input type="text" id="guide-specializations" placeholder="e.g., History, Nature, Adventure, Cultural" class="w-full text-sm">
+                        </div>
+                        <div>
+                            <label for="guide-certifications" class="block mb-1 text-sm font-medium">Certifications & Licenses</label>
+                            <textarea id="guide-certifications" rows="2" placeholder="e.g., First Aid Certificate, Mountain Guide License..." class="w-full text-sm"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="guide-certification-expiry" class="block mb-1 text-sm font-medium">Certification Expiry Date</label>
+                                <input type="date" id="guide-certification-expiry" class="w-full text-sm">
+                            </div>
+                            <div>
+                                <label for="guide-rating" class="block mb-1 text-sm font-medium">Average Rating (0-5)</label>
+                                <input type="number" id="guide-rating" min="0" max="5" step="0.1" placeholder="4.5" class="w-full text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                  <div class="flex justify-end gap-3 pt-4 border-t mt-6">
                     <button type="button" onclick="closeStaffModal()" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Staff Member</button>
@@ -433,6 +582,97 @@
 
     <!-- Toast Notification Element -->
     <div id="toast-notification"></div>
+
+    <!-- FEATURE: Phase 3 - Mobile Bottom Navigation -->
+    <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 hidden">
+        <div class="flex justify-around items-center h-16">
+            <button onclick="showView('summary')" class="flex flex-col items-center justify-center flex-1 h-full focus:outline-none hover:bg-gray-50" title="Dashboard">
+                <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                <span class="text-xs mt-1 text-gray-600">Home</span>
+            </button>
+            <button onclick="showView('day')" class="flex flex-col items-center justify-center flex-1 h-full focus:outline-none hover:bg-gray-50" title="Calendar">
+                <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-xs mt-1 text-gray-600">Calendar</span>
+            </button>
+            <button onclick="openBookingModal(toLocalDateString(currentDate))" class="flex flex-col items-center justify-center flex-1 h-full focus:outline-none hover:bg-gray-50 bg-indigo-50" title="New Booking">
+                <div class="bg-indigo-600 rounded-full p-2">
+                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </div>
+                <span class="text-xs mt-1 text-indigo-600 font-medium">Add</span>
+            </button>
+            <button onclick="showView('customers')" class="flex flex-col items-center justify-center flex-1 h-full focus:outline-none hover:bg-gray-50" title="Customers">
+                <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <span class="text-xs mt-1 text-gray-600">Customers</span>
+            </button>
+            <button onclick="openMobileMenu()" class="flex flex-col items-center justify-center flex-1 h-full focus:outline-none hover:bg-gray-50" title="More">
+                <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+                <span class="text-xs mt-1 text-gray-600">More</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- FEATURE: Phase 3 - Mobile Menu Modal -->
+    <div id="mobile-menu-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-50">
+        <div class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl max-h-[80vh] overflow-y-auto">
+            <div class="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Menu</h3>
+                <button onclick="closeMobileMenu()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-2">
+                <button onclick="showView('billing'); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span class="font-medium">Billing & Payments</span>
+                </button>
+                <button onclick="showView('resources'); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                    </svg>
+                    <span class="font-medium">Resources</span>
+                </button>
+                <button onclick="showView('week'); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="font-medium">Week View</span>
+                </button>
+                <button onclick="showView('month'); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="font-medium">Month View</span>
+                </button>
+                <button onclick="showView('settings'); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="font-medium">Settings</span>
+                </button>
+                <button onclick="openCustomerModal(); closeMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-3">
+                    <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                    </svg>
+                    <span class="font-medium">New Customer</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- JAVASCRIPT MODULES -->
     <script src="script.js" defer></script>

@@ -1,0 +1,633 @@
+{
+  "customers": [
+    {
+      "id": "customer_test_001",
+      "name": "John Murphy",
+      "email": "john.murphy@example.ie",
+      "phone": "0871234567",
+      "creation_date": "2025-01-15T10:00:00.000Z",
+      "driving_school_details": {
+        "license_number": "12345678",
+        "lesson_credits": 10,
+        "progress_notes": [
+          {
+            "id": "note_001",
+            "date": "2025-10-15",
+            "notes": "First lesson completed. Good clutch control, needs work on mirror checks.",
+            "skillsCovered": [
+              {"skill": "Cockpit Drill & Controls", "category": "standard"},
+              {"skill": "Clutch Control & Gear Changing", "category": "standard"}
+            ]
+          },
+          {
+            "id": "note_002",
+            "date": "2025-10-22",
+            "notes": "Improved significantly. Ready for junctions next lesson.",
+            "skillsCovered": [
+              {"skill": "Moving Off & Stopping Safely", "category": "standard"},
+              {"skill": "Steering Control", "category": "standard"}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "customer_test_002",
+      "name": "Sarah O'Connor",
+      "email": "sarah.oconnor@example.ie",
+      "phone": "0879876543",
+      "creation_date": "2025-02-20T14:30:00.000Z",
+      "driving_school_details": {
+        "license_number": "87654321",
+        "lesson_credits": 5,
+        "progress_notes": []
+      }
+    },
+    {
+      "id": "customer_test_003",
+      "name": "Michael Kelly",
+      "email": "michael.kelly@example.ie",
+      "phone": "0861112222",
+      "creation_date": "2025-03-10T09:15:00.000Z",
+      "driving_school_details": {
+        "license_number": "11223344",
+        "lesson_credits": 0,
+        "progress_notes": []
+      }
+    },
+    {
+      "id": "customer_test_004",
+      "name": "Emma Walsh",
+      "email": "emma.walsh@example.ie",
+      "phone": "0853334444",
+      "creation_date": "2025-09-05T11:00:00.000Z",
+      "driving_school_details": {
+        "license_number": "55667788",
+        "lesson_credits": 2.5,
+        "progress_notes": [
+          {
+            "id": "note_003",
+            "date": "2025-10-25",
+            "notes": "Mock test practice. Did well, minor issues with reversing.",
+            "skillsCovered": [
+              {"skill": "Reversing Around a Corner", "category": "advanced"},
+              {"skill": "Turn in the Road", "category": "advanced"}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "customer_test_005",
+      "name": "David Ryan",
+      "email": "david.ryan@example.ie",
+      "phone": "0875556666",
+      "creation_date": "2025-10-01T16:20:00.000Z",
+      "driving_school_details": {
+        "license_number": "",
+        "lesson_credits": 20,
+        "progress_notes": []
+      }
+    },
+    {
+      "id": "customer_test_006",
+      "name": "Lisa Brennan",
+      "email": "lisa.brennan@example.ie",
+      "phone": "0867778888",
+      "creation_date": "2025-10-20T13:45:00.000Z",
+      "driving_school_details": {
+        "license_number": "99887766",
+        "lesson_credits": 1,
+        "progress_notes": []
+      }
+    }
+  ],
+  "staff": [
+    {
+      "id": "staff_test_001",
+      "name": "Ray Ryan",
+      "email": "ray@rayryandriving.ie",
+      "staff_type": "INSTRUCTOR"
+    },
+    {
+      "id": "staff_test_002",
+      "name": "Patrick Doyle",
+      "email": "patrick@rayryandriving.ie",
+      "phone": "0872222222",
+      "staff_type": "Driving Instructor"
+    },
+    {
+      "id": "staff_test_003",
+      "name": "Claire Murphy",
+      "email": "claire@rayryandriving.ie",
+      "phone": "0873333333",
+      "staff_type": "Tour Guide"
+    }
+  ],
+  "resources": [
+    {
+      "id": "resource_test_001",
+      "resource_name": "Driving School Car 1",
+      "resource_type": "VEHICLE",
+      "capacity": 1,
+      "make": "Toyota",
+      "model": "Corolla",
+      "reg": "25-D-12345",
+      "maintenance_schedule": {
+        "mot": "2025-06-15",
+        "tax": "2025-03-31",
+        "service": "2025-01-20"
+      }
+    },
+    {
+      "id": "resource_test_002",
+      "resource_name": "Driving School Car 2",
+      "resource_type": "VEHICLE",
+      "capacity": 1,
+      "make": "Volkswagen",
+      "model": "Golf",
+      "reg": "24-D-67890",
+      "maintenance_schedule": {
+        "mot": "2025-08-20",
+        "tax": "2025-04-30",
+        "service": "2025-12-10"
+      }
+    },
+    {
+      "id": "resource_test_003",
+      "resource_name": "Tour Bus",
+      "resource_type": "VEHICLE",
+      "capacity": 20,
+      "make": "Mercedes",
+      "model": "Sprinter",
+      "reg": "23-D-11111",
+      "maintenance_schedule": {
+        "mot": "2025-11-15",
+        "tax": "2025-05-31",
+        "service": "2025-11-05"
+      }
+    },
+    {
+      "id": "resource_test_004",
+      "resource_name": "Classroom A",
+      "resource_type": "ROOM",
+      "capacity": 10,
+      "make": "",
+      "model": "",
+      "reg": "",
+      "maintenance_schedule": {
+        "mot": "",
+        "tax": "",
+        "service": ""
+      }
+    }
+  ],
+  "services": [
+    {
+      "id": "service_test_001",
+      "service_name": "1-Hour Driving Lesson",
+      "service_type": "Lesson",
+      "duration_minutes": 60,
+      "base_price": 40,
+      "pricing_rules": {
+        "type": "fixed"
+      }
+    },
+    {
+      "id": "service_test_002",
+      "service_name": "2-Hour Driving Lesson",
+      "service_type": "Lesson",
+      "duration_minutes": 120,
+      "base_price": 75,
+      "pricing_rules": {
+        "type": "fixed"
+      }
+    },
+    {
+      "id": "service_test_003",
+      "service_name": "Mock Driving Test",
+      "service_type": "Mock Test",
+      "duration_minutes": 90,
+      "base_price": 60,
+      "pricing_rules": {
+        "type": "fixed"
+      }
+    },
+    {
+      "id": "service_test_004",
+      "service_name": "EDT Lesson",
+      "service_type": "EDT",
+      "duration_minutes": 60,
+      "base_price": 45,
+      "pricing_rules": {
+        "type": "fixed"
+      }
+    },
+    {
+      "id": "service_test_005",
+      "service_name": "City Tour (2 hours)",
+      "service_type": "Tour",
+      "duration_minutes": 120,
+      "base_price": 150,
+      "pricing_rules": {
+        "type": "tiered",
+        "tiers": [
+          {"min": 1, "max": 5, "price": 150},
+          {"min": 6, "max": 10, "price": 250},
+          {"min": 11, "max": 20, "price": 400}
+        ]
+      }
+    }
+  ],
+  "bookings": [
+    {
+      "id": "booking_test_001",
+      "date": "2025-11-04",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "customerId": "customer_test_001",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Completed",
+      "paymentStatus": "Paid (Credit)",
+      "pickup": "Ballsbridge",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_002",
+      "date": "2025-11-04",
+      "startTime": "11:00",
+      "endTime": "13:00",
+      "customerId": "customer_test_002",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_002",
+      "fee": 75,
+      "status": "Completed",
+      "paymentStatus": "Paid",
+      "pickup": "Donnybrook",
+      "transactionId": "txn_test_001"
+    },
+    {
+      "id": "booking_test_003",
+      "date": "2025-11-05",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "customerId": "customer_test_003",
+      "staffId": "staff_test_002",
+      "resourceIds": ["resource_test_002"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Completed",
+      "paymentStatus": "Unpaid",
+      "pickup": "Rathmines",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_004",
+      "date": "2025-11-05",
+      "startTime": "10:30",
+      "endTime": "11:30",
+      "customerId": "customer_test_004",
+      "staffId": "staff_test_002",
+      "resourceIds": ["resource_test_002"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Scheduled",
+      "paymentStatus": "Unpaid",
+      "pickup": "Rathgar",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_005",
+      "date": "2025-11-06",
+      "startTime": "14:00",
+      "endTime": "15:30",
+      "customerId": "customer_test_001",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_003",
+      "fee": 60,
+      "status": "Scheduled",
+      "paymentStatus": "Paid",
+      "pickup": "Terenure",
+      "transactionId": "txn_test_002"
+    },
+    {
+      "id": "booking_test_006",
+      "date": "2025-11-06",
+      "startTime": "16:00",
+      "endTime": "17:00",
+      "customerId": "customer_test_005",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Scheduled",
+      "paymentStatus": "Unpaid",
+      "pickup": "Dundrum",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_007",
+      "date": "2025-11-07",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "customerId": "customer_test_006",
+      "staffId": "staff_test_002",
+      "resourceIds": ["resource_test_002"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Cancelled",
+      "paymentStatus": "Unpaid",
+      "pickup": "Stillorgan",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_008",
+      "date": "2025-11-07",
+      "startTime": "15:00",
+      "endTime": "17:00",
+      "customerId": "customer_test_002",
+      "staffId": "staff_test_003",
+      "resourceIds": ["resource_test_003"],
+      "serviceId": "service_test_005",
+      "fee": 150,
+      "status": "Scheduled",
+      "paymentStatus": "Paid",
+      "pickup": "City Centre",
+      "transactionId": "txn_test_003"
+    },
+    {
+      "id": "booking_test_009",
+      "date": "2025-11-08",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "customerId": "customer_test_001",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_004",
+      "fee": 45,
+      "status": "Scheduled",
+      "paymentStatus": "Unpaid",
+      "pickup": "Blackrock",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_010",
+      "date": "2025-11-08",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "customerId": "customer_test_003",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Scheduled",
+      "paymentStatus": "Unpaid",
+      "pickup": "Dun Laoghaire",
+      "transactionId": null
+    },
+    {
+      "id": "booking_test_011",
+      "date": "2025-10-30",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "customerId": "customer_test_004",
+      "staffId": "staff_test_002",
+      "resourceIds": ["resource_test_002"],
+      "serviceId": "service_test_001",
+      "fee": 40,
+      "status": "Completed",
+      "paymentStatus": "Paid",
+      "pickup": "Sandyford",
+      "transactionId": "txn_test_004"
+    },
+    {
+      "id": "booking_test_012",
+      "date": "2025-10-31",
+      "startTime": "13:00",
+      "endTime": "15:00",
+      "customerId": "customer_test_005",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_002",
+      "fee": 75,
+      "status": "Completed",
+      "paymentStatus": "Paid (Credit)",
+      "pickup": "Clonskeagh",
+      "transactionId": null
+    }
+  ],
+  "transactions": [
+    {
+      "id": "txn_test_001",
+      "date": "2025-11-04",
+      "type": "payment",
+      "description": "Payment for booking on 2025-11-04",
+      "amount": 75,
+      "customerId": "customer_test_002",
+      "bookingId": "booking_test_002"
+    },
+    {
+      "id": "txn_test_002",
+      "date": "2025-11-05",
+      "type": "payment",
+      "description": "Payment for booking on 2025-11-06",
+      "amount": 60,
+      "customerId": "customer_test_001",
+      "bookingId": "booking_test_005"
+    },
+    {
+      "id": "txn_test_003",
+      "date": "2025-11-06",
+      "type": "payment",
+      "description": "Payment for booking on 2025-11-07",
+      "amount": 150,
+      "customerId": "customer_test_002",
+      "bookingId": "booking_test_008"
+    },
+    {
+      "id": "txn_test_004",
+      "date": "2025-10-30",
+      "type": "payment",
+      "description": "Payment for booking on 2025-10-30",
+      "amount": 40,
+      "customerId": "customer_test_004",
+      "bookingId": "booking_test_011"
+    },
+    {
+      "id": "txn_test_005",
+      "date": "2025-09-15",
+      "type": "package_sale",
+      "description": "10-Hour Lesson Package",
+      "amount": 350,
+      "customerId": "customer_test_001",
+      "bookingId": null
+    },
+    {
+      "id": "txn_test_006",
+      "date": "2025-10-01",
+      "type": "package_sale",
+      "description": "20-Hour Premium Package",
+      "amount": 650,
+      "customerId": "customer_test_005",
+      "bookingId": null
+    },
+    {
+      "id": "txn_test_007",
+      "date": "2025-10-15",
+      "type": "package_sale",
+      "description": "5-Hour Beginner Package",
+      "amount": 180,
+      "customerId": "customer_test_002",
+      "bookingId": null
+    }
+  ],
+  "expenses": [
+    {
+      "id": "expense_test_001",
+      "date": "2025-10-01",
+      "category": "Fuel",
+      "description": "Petrol for Car 1",
+      "amount": 75.50
+    },
+    {
+      "id": "expense_test_002",
+      "date": "2025-10-05",
+      "category": "Maintenance",
+      "description": "Oil change for Car 2",
+      "amount": 85.00
+    },
+    {
+      "id": "expense_test_003",
+      "date": "2025-10-10",
+      "category": "Insurance",
+      "description": "Monthly insurance premium",
+      "amount": 250.00
+    },
+    {
+      "id": "expense_test_004",
+      "date": "2025-10-15",
+      "category": "Marketing",
+      "description": "Facebook ads campaign",
+      "amount": 120.00
+    },
+    {
+      "id": "expense_test_005",
+      "date": "2025-10-20",
+      "category": "Fuel",
+      "description": "Diesel for Tour Bus",
+      "amount": 95.00
+    },
+    {
+      "id": "expense_test_006",
+      "date": "2025-10-25",
+      "category": "Office",
+      "description": "Stationery and supplies",
+      "amount": 45.50
+    }
+  ],
+  "waitingList": [
+    {
+      "id": "waiting_test_001",
+      "customerId": "customer_test_006",
+      "date": "2025-11-10",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "staffId": "staff_test_001",
+      "resourceIds": ["resource_test_001"],
+      "serviceId": "service_test_001",
+      "addedAt": "2025-11-01T14:30:00.000Z",
+      "notes": "Prefers morning slots"
+    },
+    {
+      "id": "waiting_test_002",
+      "customerId": "customer_test_003",
+      "date": "2025-11-12",
+      "startTime": "14:00",
+      "endTime": "15:00",
+      "staffId": "staff_test_002",
+      "resourceIds": ["resource_test_002"],
+      "serviceId": "service_test_001",
+      "addedAt": "2025-11-02T09:15:00.000Z",
+      "notes": "Flexible on times"
+    }
+  ],
+  "blockedPeriods": [
+    {
+      "id": "blocked_test_001",
+      "start": "2025-12-20",
+      "end": "2025-12-27",
+      "reason": "Christmas Holiday",
+      "staffId": "all"
+    },
+    {
+      "id": "blocked_test_002",
+      "start": "2025-11-15",
+      "end": "2025-11-15",
+      "reason": "Training Day",
+      "staffId": "staff_test_002"
+    },
+    {
+      "id": "blocked_test_003",
+      "start": "2025-11-22",
+      "end": "2025-11-24",
+      "reason": "Personal Leave",
+      "staffId": "staff_test_001"
+    }
+  ],
+  "settings": {
+    "mockTestRate": 60.00,
+    "mockTestDuration": 1.5,
+    "packages": [
+      {
+        "id": "pkg_test_001",
+        "name": "5-Hour Beginner Package",
+        "hours": 5,
+        "price": 180,
+        "description": "Perfect for beginners"
+      },
+      {
+        "id": "pkg_test_002",
+        "name": "10-Hour Standard Package",
+        "hours": 10,
+        "price": 350,
+        "description": "Most popular choice"
+      },
+      {
+        "id": "pkg_test_003",
+        "name": "20-Hour Premium Package",
+        "hours": 20,
+        "price": 650,
+        "description": "Best value for money"
+      },
+      {
+        "id": "pkg_test_004",
+        "name": "EDT 12-Lesson Package",
+        "hours": 12,
+        "price": 480,
+        "description": "Essential Driver Training package"
+      }
+    ],
+    "instructorName": "Ray Ryan",
+    "aiProvider": "gemini",
+    "apiKeys": {
+      "gemini": "",
+      "openai": "",
+      "perplexity": "",
+      "openrouter": ""
+    },
+    "apiModels": {
+      "gemini": "",
+      "openai": "",
+      "perplexity": "",
+      "openrouter": ""
+    },
+    "smsTemplate": "Hi [CustomerFirstName], this is a friendly reminder for your lesson on [LessonDate] at [LessonTime]. See you then! From [InstructorName].",
+    "autoBackupEnabled": false,
+    "firstDayOfWeek": "monday"
+  }
+}
