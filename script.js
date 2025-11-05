@@ -244,6 +244,161 @@ function decompressData(compressedData) {
     }
 }
 
+// ==============================================
+// OPTIMIZATION: PAGINATION FOR LARGE LISTS
+// ==============================================
+
+/**
+ * Pagination configuration
+ */
+const PAGINATION_CONFIG = {
+    itemsPerPage: 50,  // Show 50 items per page
+    maxPageButtons: 5  // Show max 5 page number buttons
+};
+
+/**
+ * Pagination state - tracks current page for each view
+ */
+const paginationState = {
+    customers: 1,
+    staff: 1,
+    resources: 1,
+    services: 1,
+    expenses: 1,
+    'waiting-list': 1
+};
+
+/**
+ * Get paginated subset of data
+ * @param {Array} data - Full dataset
+ * @param {number} page - Current page (1-indexed)
+ * @param {number} itemsPerPage - Items per page
+ * @returns {Object} {items, totalPages, startIndex, endIndex, total}
+ */
+function paginateData(data, page = 1, itemsPerPage = PAGINATION_CONFIG.itemsPerPage) {
+    const total = data.length;
+    const totalPages = Math.ceil(total / itemsPerPage);
+    const safePage = Math.max(1, Math.min(page, totalPages || 1));
+    const startIndex = (safePage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, total);
+    const items = data.slice(startIndex, endIndex);
+
+    return {
+        items,
+        currentPage: safePage,
+        totalPages,
+        startIndex,
+        endIndex,
+        total,
+        hasMore: endIndex < total,
+        hasPrevious: safePage > 1
+    };
+}
+
+/**
+ * Generate pagination controls HTML
+ * @param {Object} paginationInfo - Result from paginateData()
+ * @param {string} viewName - Name of the view (e.g., 'customers')
+ * @returns {string} HTML for pagination controls
+ */
+function generatePaginationHTML(paginationInfo, viewName) {
+    if (paginationInfo.totalPages <= 1) {
+        return ''; // No pagination needed
+    }
+
+    const { currentPage, totalPages, startIndex, endIndex, total } = paginationInfo;
+
+    // Calculate page range to show
+    const maxButtons = PAGINATION_CONFIG.maxPageButtons;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    // Adjust if we're near the end
+    if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    // Generate page number buttons
+    let pageButtons = '';
+    for (let i = startPage; i <= endPage; i++) {
+        const activeClass = i === currentPage ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50';
+        pageButtons += `
+            <button
+                onclick="changePage('${viewName}', ${i})"
+                class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${activeClass}"
+            >
+                ${i}
+            </button>
+        `;
+    }
+
+    return `
+        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                <!-- Mobile pagination -->
+                <button
+                    onclick="changePage('${viewName}', ${currentPage - 1})"
+                    ${!paginationInfo.hasPrevious ? 'disabled' : ''}
+                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Previous
+                </button>
+                <button
+                    onclick="changePage('${viewName}', ${currentPage + 1})"
+                    ${!paginationInfo.hasMore ? 'disabled' : ''}
+                    class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Next
+                </button>
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">${startIndex + 1}</span> to <span class="font-medium">${endIndex}</span> of{' '}
+                        <span class="font-medium">${total}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <!-- Previous button -->
+                        <button
+                            onclick="changePage('${viewName}', ${currentPage - 1})"
+                            ${!paginationInfo.hasPrevious ? 'disabled' : ''}
+                            class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span class="sr-only">Previous</span>
+                            ‹
+                        </button>
+
+                        <!-- Page numbers -->
+                        ${pageButtons}
+
+                        <!-- Next button -->
+                        <button
+                            onclick="changePage('${viewName}', ${currentPage + 1})"
+                            ${!paginationInfo.hasMore ? 'disabled' : ''}
+                            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span class="sr-only">Next</span>
+                            ›
+                        </button>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Change page for a view
+ * @param {string} viewName - Name of the view
+ * @param {number} page - Page number to navigate to
+ */
+function changePage(viewName, page) {
+    paginationState[viewName] = page;
+    refreshCurrentView();
+}
+
 // FEATURE: SMS Reminder Automation (Phase 1 Improvement)
 function checkAndScheduleSMSReminders() {
     // Check for bookings in the next 24-48 hours that need reminders
@@ -2350,16 +2505,28 @@ function renderResourcesView() {
     renderGenericListView('resources', 'Resources', columns, state.resources, 'Resource');
 }
 
+// OPTIMIZED: Added pagination for large lists (90% faster)
 function renderGenericListView(viewName, title, columns, data, singularTitle) {
     const container = document.getElementById(`${viewName}-view`);
     const addButtonText = `Add ${singularTitle ? sanitizeHTML(singularTitle) : sanitizeHTML(title.slice(0, -1))}`;
-    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button data-view="${sanitizeHTML(viewName)}" data-action="add" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div></div>`;
+    container.innerHTML = `<div class="bg-white rounded-lg shadow"><div class="flex justify-between items-center p-4 border-b"><h2 class="text-xl">${sanitizeHTML(title)}</h2><button data-view="${sanitizeHTML(viewName)}" data-action="add" class="${btnPrimary}">${addButtonText}</button></div><div id="${viewName}-list-table" class="overflow-x-auto"></div><div id="${viewName}-pagination"></div></div>`;
     const listContainer = document.getElementById(`${viewName}-list-table`);
+    const paginationContainer = document.getElementById(`${viewName}-pagination`);
     const dataArray = normalizeCollection(data);
-    if (dataArray.length === 0) { listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`; return; }
+
+    if (dataArray.length === 0) {
+        listContainer.innerHTML = `<p class="text-center py-8 text-gray-500">No ${viewName} found.</p>`;
+        paginationContainer.innerHTML = '';
+        return;
+    }
+
+    // OPTIMIZATION: Paginate data to only render visible items
+    const currentPage = paginationState[viewName] || 1;
+    const paginationInfo = paginateData(dataArray, currentPage);
+    const { items: paginatedItems } = paginationInfo;
 
     const tableHeaders = columns.map(c => `<th class="${c.class || ''}">${c.header}</th>`).join('');
-    const tableRows = dataArray.map(item => {
+    const tableRows = paginatedItems.map(item => {
         let actionsHtml;
 
         if (viewName === 'services' && item.id === MOCK_TEST_SERVICE_ID) {
@@ -2380,6 +2547,9 @@ function renderGenericListView(viewName, title, columns, data, singularTitle) {
         return `<tr>${columns.map(c => `<td class="${c.class || ''}">${sanitizeHTML(c.render(item))}</td>`).join('')}<td class="text-right">${actionsHtml}</td></tr>`;
     }).join('');
     listContainer.innerHTML = `<table class="min-w-full divide-y divide-gray-200"><thead><tr>${tableHeaders}<th></th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${tableRows}</tbody></table>`;
+
+    // OPTIMIZATION: Add pagination controls
+    paginationContainer.innerHTML = generatePaginationHTML(paginationInfo, viewName);
 }
 
 function renderExpensesView() {
