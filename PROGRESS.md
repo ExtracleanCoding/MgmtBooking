@@ -109,21 +109,36 @@
 - Search integration (viewCustomerFromSearch)
 - Security validation using security.js module
 
+### Phase 3.6: Staff Module (COMPLETE)
+- ✅ `src/modules/staff.js` (405 lines) - Staff management, guide qualifications, schedule helpers
+
+**Includes:**
+- Staff list view rendering
+- Staff CRUD operations (create/edit/delete)
+- Delete staff with null staffId in affected bookings
+- Guide qualification fields toggle
+- Guide qualifications management
+  - Languages (comma-separated list)
+  - Specializations (comma-separated list)
+  - Certifications with expiry dates
+  - Rating system (0-5 stars)
+- Staff modal management (open/close/populate)
+- Helper functions:
+  - getStaffSchedule() - Get bookings and blocked periods by date range
+  - getAvailableStaff() - Find available staff for given date/time
+  - getStaffById() - Retrieve staff by ID
+  - getGuideQualificationsSummary() - Formatted qualifications display
+- Search cache clearing on staff data changes
+
 ---
 
 ## 🔄 IN PROGRESS
 
-None - Ready for Phase 3.6
+None - Ready for Phase 3.7
 
 ---
 
 ## ⏳ PENDING WORK
-
-### Phase 3.6: Staff Module
-**Target:** `src/modules/staff.js` (~300 lines)
-- CRUD operations
-- Schedule management
-- Qualifications tracking
 
 ### Phase 3.7: Modals Module
 **Target:** `src/modules/modals.js` (~1,000 lines)
@@ -148,10 +163,10 @@ None - Ready for Phase 3.6
 
 | Metric | Current Status |
 |--------|----------------|
-| **Lines Extracted** | ~5,591 / 7,518 (74%) |
-| **Modules Created** | 11 files |
+| **Lines Extracted** | ~5,996 / 7,518 (80%) |
+| **Modules Created** | 12 files |
 | **Core Modules** | 5/5 (100%) ✅ |
-| **Feature Modules** | 5/8 (63%) ✅ |
+| **Feature Modules** | 6/8 (75%) ✅ |
 | **Storage Reduction** | 70% (with compression) |
 | **Type Safety** | Full TypeScript definitions |
 
@@ -159,42 +174,36 @@ None - Ready for Phase 3.6
 
 ## 🎯 NEXT STEPS
 
-1. **Extract Customers Module** (Phase 3.5)
-   - Extract ~400 lines of customer functions
-   - Commit and push
-
-2. **Extract Staff Module** (Phase 3.6)
-   - Extract ~300 lines of staff functions
-   - Commit and push
-
-3. **Extract Modals Module** (Phase 3.7)
+1. **Extract Modals Module** (Phase 3.7)
    - Extract ~1,000 lines of modal functions
    - Commit and push
 
-4. **Extract Navigation Module** (Phase 3.8)
+2. **Extract Navigation Module** (Phase 3.8)
    - Extract ~200 lines of navigation functions
    - Complete Phase 3
 
-5. **Integration & Testing** (Phase 4)
+3. **Integration & Testing** (Phase 4)
    - Wire up all modules in main.js
    - Update index.html
    - Production build with Vite
+   - Performance benchmarking
 
 ---
 
 ## 💾 GIT STATUS
 
-**Commits:** 15 commits total
+**Commits:** 16 commits total
 - Phase 2.1: 6 commits (core modules + main.js)
 - Phase 3.1: 1 commit (calendar module - 564 lines)
 - Phase 3.2: 1 commit (billing module - 521 lines)
 - Phase 3.3: 1 commit (reports module - 693 lines)
 - Phase 3.4: 1 commit (bookings module - 822 lines)
 - Phase 3.5: 1 commit (customers module - 991 lines)
+- Phase 3.6: 1 commit (staff module - 405 lines)
 - Documentation: 4 commits
 
-**Branch Status:** Ready to commit and push Phase 3.5
-**Working Tree:** Modified (customers.js + main.js updates)
+**Branch Status:** Ready to commit and push Phase 3.6
+**Working Tree:** Modified (staff.js + main.js updates)
 
 ---
 
@@ -206,12 +215,12 @@ None - Ready for Phase 3.6
 - Gradual migration strategy ensures no breaking changes
 - TypeScript definitions provide type safety
 - Comprehensive JSDoc documentation for all functions
-- **74% milestone reached!** Nearly 3/4 of the codebase is now modularized
-- Customers module includes comprehensive progress tracking system
-- Driving school skills mastery calculation with visual dashboard
-- Package sales integration with transaction management
-- Security validation using security.js module
+- **80% milestone reached!** 4/5 of the codebase is now modularized
+- Staff module includes guide qualifications system for tour guides
+- Schedule helper functions for availability checking
+- Helper functions for staff lookup and qualification summaries
+- Only 2 feature modules remaining (Modals, Navigation)
 
 ---
 
-*Last updated: Phase 3.5 Complete - Customers Module Extracted (74% of codebase modularized)*
+*Last updated: Phase 3.6 Complete - Staff Module Extracted (80% of codebase modularized)*

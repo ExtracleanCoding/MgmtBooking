@@ -213,8 +213,21 @@ import {
     confirmSale
 } from './modules/customers.js';
 
-// TODO: Phase 3.6-3.8 - Extract remaining modules from script.js
-// import { saveStaff, deleteStaff, getStaffSchedule } from './modules/staff.js';
+// Phase 3.6: Staff Module
+import {
+    renderStaffView,
+    saveStaff,
+    deleteStaff,
+    toggleGuideFields,
+    openStaffModal,
+    closeStaffModal,
+    getStaffSchedule,
+    getAvailableStaff,
+    getStaffById,
+    getGuideQualificationsSummary
+} from './modules/staff.js';
+
+// TODO: Phase 3.7-3.8 - Extract remaining modules from script.js
 // import { openBookingModal, closeBookingModal } from './modules/modals.js';
 // import { showView, refreshCurrentView, changeDate } from './modules/navigation.js';
 
@@ -386,6 +399,18 @@ if (typeof window !== 'undefined') {
     window.openSellPackageModal = openSellPackageModal;
     window.updatePackageSummary = updatePackageSummary;
     window.confirmSale = confirmSale;
+
+    // Staff Module
+    window.renderStaffView = renderStaffView;
+    window.saveStaff = saveStaff;
+    window.deleteStaff = deleteStaff;
+    window.toggleGuideFields = toggleGuideFields;
+    window.openStaffModal = openStaffModal;
+    window.closeStaffModal = closeStaffModal;
+    window.getStaffSchedule = getStaffSchedule;
+    window.getAvailableStaff = getAvailableStaff;
+    window.getStaffById = getStaffById;
+    window.getGuideQualificationsSummary = getGuideQualificationsSummary;
 }
 
 // ============================================
