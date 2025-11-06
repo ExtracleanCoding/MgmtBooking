@@ -125,15 +125,73 @@ import {
 } from './core/storage.js';
 
 // ============================================
-// FUTURE MODULE IMPORTS (To be extracted)
+// FEATURE MODULE IMPORTS
 // ============================================
 
-// TODO: Phase 3 - Extract these modules from script.js
-// import { renderCalendar, renderWeekView, renderDayView, renderMonthView } from './modules/calendar.js';
-// import { renderBillingView, renderTransactionList, generateInvoice } from './modules/billing.js';
-// import { generateCharts, getReportsData, getTourAnalytics } from './modules/reports.js';
-// import { saveBooking, deleteBooking, findBookingConflict, calculateBookingFee } from './modules/bookings.js';
-// import { saveCustomer, deleteCustomer, getCustomerSummaries } from './modules/customers.js';
+// Phase 3.1: Calendar Module
+import {
+    renderCalendarContainer,
+    renderCalendarHeader,
+    renderDayView,
+    renderWeekView,
+    renderMonthView,
+    assignColumns,
+    getBlockedPeriodsForDate,
+    startDrag,
+    drag,
+    endDrag,
+    handleDragStart,
+    allowDrop,
+    handleDragEnter,
+    handleDragLeave,
+    drop,
+    pixelsToTime
+} from './modules/calendar.js';
+
+// Phase 3.2: Billing Module
+import {
+    renderBillingView,
+    renderBillingContent,
+    renderDetailedBillingBreakdown,
+    getCustomerSummaries,
+    updateBulkPaymentTotal,
+    recordBulkPayment,
+    handleBillingClick,
+    copyPaymentReminder,
+    exportBillingToExcel
+} from './modules/billing.js';
+
+// Phase 3.3: Reports Module
+import {
+    renderReportsView,
+    getReportsData,
+    getTourAnalytics,
+    generateCharts,
+    updateKPICards,
+    generateOverdueReport,
+    handleDateRangeChange,
+    handleDepartmentChange,
+    toggleAnalysis
+} from './modules/reports.js';
+
+// Phase 3.4: Bookings Module
+import {
+    findBookingConflict,
+    checkAdjacentBookings,
+    toggleRecurringOptions,
+    updateRecurringPreview,
+    generateRecurringDates,
+    calculateBookingFee,
+    updateGroupPricing,
+    toggleMultidayOptions,
+    updateStaffAvailability,
+    saveBooking,
+    finalizeSaveBooking,
+    deleteBooking
+} from './modules/bookings.js';
+
+// TODO: Phase 3.5-3.8 - Extract remaining modules from script.js
+// import { saveCustomer, deleteCustomer } from './modules/customers.js';
 // import { saveStaff, deleteStaff, getStaffSchedule } from './modules/staff.js';
 // import { openBookingModal, closeBookingModal, openCustomerModal, closeCustomerModal } from './modules/modals.js';
 // import { showView, refreshCurrentView, changeDate } from './modules/navigation.js';
@@ -231,6 +289,60 @@ if (typeof window !== 'undefined') {
     window.exportStateAsJSON = exportStateAsJSON;
     window.importStateFromJSON = importStateFromJSON;
     window.getStorageUsage = getStorageUsage;
+
+    // Calendar Module
+    window.renderCalendarContainer = renderCalendarContainer;
+    window.renderCalendarHeader = renderCalendarHeader;
+    window.renderDayView = renderDayView;
+    window.renderWeekView = renderWeekView;
+    window.renderMonthView = renderMonthView;
+    window.assignColumns = assignColumns;
+    window.getBlockedPeriodsForDate = getBlockedPeriodsForDate;
+    window.startDrag = startDrag;
+    window.drag = drag;
+    window.endDrag = endDrag;
+    window.handleDragStart = handleDragStart;
+    window.allowDrop = allowDrop;
+    window.handleDragEnter = handleDragEnter;
+    window.handleDragLeave = handleDragLeave;
+    window.drop = drop;
+    window.pixelsToTime = pixelsToTime;
+
+    // Billing Module
+    window.renderBillingView = renderBillingView;
+    window.renderBillingContent = renderBillingContent;
+    window.renderDetailedBillingBreakdown = renderDetailedBillingBreakdown;
+    window.getCustomerSummaries = getCustomerSummaries;
+    window.updateBulkPaymentTotal = updateBulkPaymentTotal;
+    window.recordBulkPayment = recordBulkPayment;
+    window.handleBillingClick = handleBillingClick;
+    window.copyPaymentReminder = copyPaymentReminder;
+    window.exportBillingToExcel = exportBillingToExcel;
+
+    // Reports Module
+    window.renderReportsView = renderReportsView;
+    window.getReportsData = getReportsData;
+    window.getTourAnalytics = getTourAnalytics;
+    window.generateCharts = generateCharts;
+    window.updateKPICards = updateKPICards;
+    window.generateOverdueReport = generateOverdueReport;
+    window.handleDateRangeChange = handleDateRangeChange;
+    window.handleDepartmentChange = handleDepartmentChange;
+    window.toggleAnalysis = toggleAnalysis;
+
+    // Bookings Module
+    window.findBookingConflict = findBookingConflict;
+    window.checkAdjacentBookings = checkAdjacentBookings;
+    window.toggleRecurringOptions = toggleRecurringOptions;
+    window.updateRecurringPreview = updateRecurringPreview;
+    window.generateRecurringDates = generateRecurringDates;
+    window.calculateBookingFee = calculateBookingFee;
+    window.updateGroupPricing = updateGroupPricing;
+    window.toggleMultidayOptions = toggleMultidayOptions;
+    window.updateStaffAvailability = updateStaffAvailability;
+    window.saveBooking = saveBooking;
+    window.finalizeSaveBooking = finalizeSaveBooking;
+    window.deleteBooking = deleteBooking;
 }
 
 // ============================================
