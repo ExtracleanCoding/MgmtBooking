@@ -87,21 +87,37 @@
 - Memoized fee calculations for performance
 - 10+ validation checks (time, date, duration, conflicts)
 
+### Phase 3.5: Customers Module (COMPLETE)
+- ✅ `src/modules/customers.js` (991 lines) - Customer management, progress tracking, package sales
+
+**Includes:**
+- Customer list view rendering
+- Customer CRUD operations with validation (name, email, phone, credits)
+- Duplicate email detection
+- Delete customer with cascading deletion of bookings and transactions
+- Progress tracking system for driving school students
+- Skills mastery calculation (mastered, in-progress, not-started)
+- Visual progress dashboard with percentage complete
+- Estimated weeks until test-ready calculation
+- Progress note CRUD operations
+- Skills checklist by category (standard, intermediate, advanced, mock test)
+- Customer modal management (open/close/populate)
+- Progress tracking modal with skills checklist
+- Package sales functionality
+- Lesson credits management
+- Transaction recording for package sales
+- Search integration (viewCustomerFromSearch)
+- Security validation using security.js module
+
 ---
 
 ## 🔄 IN PROGRESS
 
-None - Ready for Phase 3.5
+None - Ready for Phase 3.6
 
 ---
 
 ## ⏳ PENDING WORK
-
-### Phase 3.5: Customers Module
-**Target:** `src/modules/customers.js` (~400 lines)
-- CRUD operations
-- Customer summaries
-- Payment tracking
 
 ### Phase 3.6: Staff Module
 **Target:** `src/modules/staff.js` (~300 lines)
@@ -132,10 +148,10 @@ None - Ready for Phase 3.5
 
 | Metric | Current Status |
 |--------|----------------|
-| **Lines Extracted** | ~4,600 / 7,518 (61%) |
-| **Modules Created** | 10 files |
+| **Lines Extracted** | ~5,591 / 7,518 (74%) |
+| **Modules Created** | 11 files |
 | **Core Modules** | 5/5 (100%) ✅ |
-| **Feature Modules** | 4/8 (50%) ✅ |
+| **Feature Modules** | 5/8 (63%) ✅ |
 | **Storage Reduction** | 70% (with compression) |
 | **Type Safety** | Full TypeScript definitions |
 
@@ -168,16 +184,17 @@ None - Ready for Phase 3.5
 
 ## 💾 GIT STATUS
 
-**Commits:** 14 commits total
+**Commits:** 15 commits total
 - Phase 2.1: 6 commits (core modules + main.js)
 - Phase 3.1: 1 commit (calendar module - 564 lines)
 - Phase 3.2: 1 commit (billing module - 521 lines)
 - Phase 3.3: 1 commit (reports module - 693 lines)
 - Phase 3.4: 1 commit (bookings module - 822 lines)
+- Phase 3.5: 1 commit (customers module - 991 lines)
 - Documentation: 4 commits
 
-**Branch Status:** Ready to commit and push Phase 3.4
-**Working Tree:** Modified (bookings.js + main.js updates)
+**Branch Status:** Ready to commit and push Phase 3.5
+**Working Tree:** Modified (customers.js + main.js updates)
 
 ---
 
@@ -189,10 +206,12 @@ None - Ready for Phase 3.5
 - Gradual migration strategy ensures no breaking changes
 - TypeScript definitions provide type safety
 - Comprehensive JSDoc documentation for all functions
-- **61% milestone reached!** Over 3/5 of the codebase is now modularized
-- Bookings module includes comprehensive validation and conflict detection
-- Support for recurring bookings, tours, and multi-day events
+- **74% milestone reached!** Nearly 3/4 of the codebase is now modularized
+- Customers module includes comprehensive progress tracking system
+- Driving school skills mastery calculation with visual dashboard
+- Package sales integration with transaction management
+- Security validation using security.js module
 
 ---
 
-*Last updated: Phase 3.4 Complete - Bookings Module Extracted (61% of codebase modularized)*
+*Last updated: Phase 3.5 Complete - Customers Module Extracted (74% of codebase modularized)*

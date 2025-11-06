@@ -190,10 +190,32 @@ import {
     deleteBooking
 } from './modules/bookings.js';
 
-// TODO: Phase 3.5-3.8 - Extract remaining modules from script.js
-// import { saveCustomer, deleteCustomer } from './modules/customers.js';
+// Phase 3.5: Customers Module
+import {
+    renderCustomersView,
+    viewCustomerFromSearch,
+    saveCustomer,
+    deleteCustomer,
+    saveProgressNote,
+    calculateStudentProgress,
+    renderStudentProgressDashboard,
+    renderProgressLog,
+    editProgressNote,
+    deleteProgressNote,
+    openCustomerModal,
+    closeCustomerModal,
+    openCustomerProgressModal,
+    closeCustomerProgressModal,
+    populateProgressDateSelect,
+    resetProgressForm,
+    openSellPackageModal,
+    updatePackageSummary,
+    confirmSale
+} from './modules/customers.js';
+
+// TODO: Phase 3.6-3.8 - Extract remaining modules from script.js
 // import { saveStaff, deleteStaff, getStaffSchedule } from './modules/staff.js';
-// import { openBookingModal, closeBookingModal, openCustomerModal, closeCustomerModal } from './modules/modals.js';
+// import { openBookingModal, closeBookingModal } from './modules/modals.js';
 // import { showView, refreshCurrentView, changeDate } from './modules/navigation.js';
 
 // ============================================
@@ -343,6 +365,27 @@ if (typeof window !== 'undefined') {
     window.saveBooking = saveBooking;
     window.finalizeSaveBooking = finalizeSaveBooking;
     window.deleteBooking = deleteBooking;
+
+    // Customers Module
+    window.renderCustomersView = renderCustomersView;
+    window.viewCustomerFromSearch = viewCustomerFromSearch;
+    window.saveCustomer = saveCustomer;
+    window.deleteCustomer = deleteCustomer;
+    window.saveProgressNote = saveProgressNote;
+    window.calculateStudentProgress = calculateStudentProgress;
+    window.renderStudentProgressDashboard = renderStudentProgressDashboard;
+    window.renderProgressLog = renderProgressLog;
+    window.editProgressNote = editProgressNote;
+    window.deleteProgressNote = deleteProgressNote;
+    window.openCustomerModal = openCustomerModal;
+    window.closeCustomerModal = closeCustomerModal;
+    window.openCustomerProgressModal = openCustomerProgressModal;
+    window.closeCustomerProgressModal = closeCustomerProgressModal;
+    window.populateProgressDateSelect = populateProgressDateSelect;
+    window.resetProgressForm = resetProgressForm;
+    window.openSellPackageModal = openSellPackageModal;
+    window.updatePackageSummary = updatePackageSummary;
+    window.confirmSale = confirmSale;
 }
 
 // ============================================
