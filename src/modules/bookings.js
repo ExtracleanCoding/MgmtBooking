@@ -40,14 +40,14 @@ import {
 import {
     memoize,
     clearMemoCache,
-    clearSearchCache,
-    btnPrimary,
-    btnSecondary,
-    btnDanger
+    clearSearchCache
 } from '../core/optimization.js';
 
 import {
     DB_KEYS,
+    btnPrimary,
+    btnSecondary,
+    btnDanger,
     CALENDAR_START_HOUR,
     CALENDAR_END_HOUR,
     BOOKING_STATUS,

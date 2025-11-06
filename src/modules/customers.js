@@ -32,15 +32,15 @@ import {
 } from '../core/utils.js';
 
 import {
-    clearSearchCache,
-    btnPrimary,
-    btnSecondary,
-    btnDanger
+    clearSearchCache
 } from '../core/optimization.js';
 
 import {
     DB_KEYS,
-    skillLevels
+    skillLevels,
+    btnPrimary,
+    btnSecondary,
+    btnDanger
 } from '../core/constants.js';
 
 // ============================================

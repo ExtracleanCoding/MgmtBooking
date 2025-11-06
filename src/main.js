@@ -252,8 +252,18 @@ import {
     closeCompletionModal
 } from './modules/modals.js';
 
-// TODO: Phase 3.8 - Extract remaining modules from script.js
-// import { showView, refreshCurrentView, changeDate } from './modules/navigation.js';
+// Phase 3.8: Navigation Module
+import {
+    showView,
+    updateActiveNav,
+    refreshCurrentView,
+    changeDate,
+    goToToday,
+    goToDate,
+    switchCalendarView,
+    getViewTitle,
+    isCalendarView
+} from './modules/navigation.js';
 
 // ============================================
 // EXPOSE TO GLOBAL SCOPE (For backwards compatibility during migration)
@@ -458,6 +468,17 @@ if (typeof window !== 'undefined') {
     window.closeExpenseModal = closeExpenseModal;
     window.openCompletionModal = openCompletionModal;
     window.closeCompletionModal = closeCompletionModal;
+
+    // Navigation Module
+    window.showView = showView;
+    window.updateActiveNav = updateActiveNav;
+    window.refreshCurrentView = refreshCurrentView;
+    window.changeDate = changeDate;
+    window.goToToday = goToToday;
+    window.goToDate = goToDate;
+    window.switchCalendarView = switchCalendarView;
+    window.getViewTitle = getViewTitle;
+    window.isCalendarView = isCalendarView;
 }
 
 // ============================================

@@ -30,14 +30,14 @@ import {
 } from '../core/utils.js';
 
 import {
-    clearSearchCache,
-    btnPrimary,
-    btnSecondary,
-    btnDanger
+    clearSearchCache
 } from '../core/optimization.js';
 
 import {
-    DB_KEYS
+    DB_KEYS,
+    btnPrimary,
+    btnSecondary,
+    btnDanger
 } from '../core/constants.js';
 
 // ============================================

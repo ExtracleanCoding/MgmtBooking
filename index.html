@@ -688,8 +688,9 @@
     </div>
 
     <!-- JAVASCRIPT MODULES -->
-    <script src="script.js" defer></script>
-    <!-- The large inline script has been moved to script.js -->
+    <!-- Phase 4: Modular Architecture - Load main.js as ES module entry point -->
+    <script type="module" src="/src/main.js"></script>
+    <!-- The monolithic script.js has been refactored into modular ES6 modules in src/ -->
 
 
 </body>
