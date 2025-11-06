@@ -1,0 +1,31 @@
+{
+  "name": "ray-ryan-management-system",
+  "version": "3.2.0",
+  "description": "Comprehensive management system for driving school and tour guide business",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "management",
+    "booking",
+    "driving-school",
+    "tour-guide",
+    "spa"
+  ],
+  "author": "Ray Ryan Management",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "terser": "^5.44.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "lz-string": "^1.5.0"
+  }
+}
