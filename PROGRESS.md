@@ -130,20 +130,54 @@
   - getGuideQualificationsSummary() - Formatted qualifications display
 - Search cache clearing on staff data changes
 
+### Phase 3.7: Modals Module (COMPLETE)
+- ✅ `src/modules/modals.js` (844 lines) - All modal dialogs and form handling
+
+**Includes:**
+- Generic closeModal() function for all modals
+- populateSelect() - Generic dropdown population
+- Booking modal (openBookingModal, closeBookingModal)
+  - Past date validation
+  - Blocked date checking
+  - Recurring booking section toggle
+  - Tour-specific fields population
+  - Edit mode with delete/export actions
+- Day summary modal (openDaySummaryModal, closeDaySummaryModal)
+  - Show all bookings and blocked periods for a date
+  - Edit/delete actions for each booking
+  - Add new booking button
+- Service modal (openServiceModal, closeServiceModal)
+  - Fixed vs tiered pricing toggle
+  - Tour-specific fields (description, capacity, photo gallery)
+  - Pricing tiers management
+- Resource modal (openResourceModal, closeResourceModal)
+  - Vehicle-specific fields toggle
+  - Maintenance schedule (MOT, tax, service)
+- Block dates modal (openBlockDatesModal, closeBlockDatesModal)
+  - Staff availability blocking
+  - School holiday blocking
+- Invoice modal (openInvoiceModal, closeInvoiceModal)
+  - Generate invoice for unpaid bookings
+  - Company logo and VAT number
+  - Line items with totals
+- Expense modal (openExpenseModal, closeExpenseModal)
+  - Track business expenses by category
+- Completion modal (openCompletionModal, closeCompletionModal)
+  - Quick lesson completion marking
+- Helper functions:
+  - handlePricingTypeChange() - Toggle pricing fields
+  - handleServiceTypeChange() - Toggle tour fields
+  - toggleVehicleFields() - Toggle vehicle maintenance fields
+
 ---
 
 ## 🔄 IN PROGRESS
 
-None - Ready for Phase 3.7
+None - Ready for Phase 3.8 (Final feature module!)
 
 ---
 
 ## ⏳ PENDING WORK
-
-### Phase 3.7: Modals Module
-**Target:** `src/modules/modals.js` (~1,000 lines)
-- All modal open/close functions
-- Form handling and validation
 
 ### Phase 3.8: Navigation Module
 **Target:** `src/modules/navigation.js` (~200 lines)
@@ -163,10 +197,10 @@ None - Ready for Phase 3.7
 
 | Metric | Current Status |
 |--------|----------------|
-| **Lines Extracted** | ~5,996 / 7,518 (80%) |
-| **Modules Created** | 12 files |
+| **Lines Extracted** | ~6,840 / 7,518 (91%) |
+| **Modules Created** | 13 files |
 | **Core Modules** | 5/5 (100%) ✅ |
-| **Feature Modules** | 6/8 (75%) ✅ |
+| **Feature Modules** | 7/8 (88%) ✅ |
 | **Storage Reduction** | 70% (with compression) |
 | **Type Safety** | Full TypeScript definitions |
 
@@ -174,25 +208,22 @@ None - Ready for Phase 3.7
 
 ## 🎯 NEXT STEPS
 
-1. **Extract Modals Module** (Phase 3.7)
-   - Extract ~1,000 lines of modal functions
-   - Commit and push
-
-2. **Extract Navigation Module** (Phase 3.8)
+1. **Extract Navigation Module** (Phase 3.8) - Final Feature Module!
    - Extract ~200 lines of navigation functions
    - Complete Phase 3
 
-3. **Integration & Testing** (Phase 4)
+2. **Integration & Testing** (Phase 4)
    - Wire up all modules in main.js
    - Update index.html
    - Production build with Vite
    - Performance benchmarking
+   - 100% modularization complete!
 
 ---
 
 ## 💾 GIT STATUS
 
-**Commits:** 16 commits total
+**Commits:** 17 commits total
 - Phase 2.1: 6 commits (core modules + main.js)
 - Phase 3.1: 1 commit (calendar module - 564 lines)
 - Phase 3.2: 1 commit (billing module - 521 lines)
@@ -200,10 +231,11 @@ None - Ready for Phase 3.7
 - Phase 3.4: 1 commit (bookings module - 822 lines)
 - Phase 3.5: 1 commit (customers module - 991 lines)
 - Phase 3.6: 1 commit (staff module - 405 lines)
+- Phase 3.7: 1 commit (modals module - 844 lines)
 - Documentation: 4 commits
 
-**Branch Status:** Ready to commit and push Phase 3.6
-**Working Tree:** Modified (staff.js + main.js updates)
+**Branch Status:** Ready to commit and push Phase 3.7
+**Working Tree:** Modified (modals.js + main.js updates)
 
 ---
 
@@ -215,12 +247,12 @@ None - Ready for Phase 3.7
 - Gradual migration strategy ensures no breaking changes
 - TypeScript definitions provide type safety
 - Comprehensive JSDoc documentation for all functions
-- **80% milestone reached!** 4/5 of the codebase is now modularized
-- Staff module includes guide qualifications system for tour guides
-- Schedule helper functions for availability checking
-- Helper functions for staff lookup and qualification summaries
-- Only 2 feature modules remaining (Modals, Navigation)
+- **91% milestone reached!** Over 9/10 of the codebase is now modularized
+- Modals module consolidates all dialog management
+- 10 different modal types with form handling
+- Generic closeModal() and populateSelect() utilities
+- Only 1 feature module remaining (Navigation) - Almost done!
 
 ---
 
-*Last updated: Phase 3.6 Complete - Staff Module Extracted (80% of codebase modularized)*
+*Last updated: Phase 3.7 Complete - Modals Module Extracted (91% of codebase modularized)*

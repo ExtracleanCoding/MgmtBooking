@@ -227,8 +227,32 @@ import {
     getGuideQualificationsSummary
 } from './modules/staff.js';
 
-// TODO: Phase 3.7-3.8 - Extract remaining modules from script.js
-// import { openBookingModal, closeBookingModal } from './modules/modals.js';
+// Phase 3.7: Modals Module
+import {
+    closeModal,
+    populateSelect,
+    openBookingModal,
+    closeBookingModal,
+    openDaySummaryModal,
+    closeDaySummaryModal,
+    openServiceModal,
+    closeServiceModal,
+    handlePricingTypeChange,
+    handleServiceTypeChange,
+    openResourceModal,
+    closeResourceModal,
+    toggleVehicleFields,
+    openBlockDatesModal,
+    closeBlockDatesModal,
+    openInvoiceModal,
+    closeInvoiceModal,
+    openExpenseModal,
+    closeExpenseModal,
+    openCompletionModal,
+    closeCompletionModal
+} from './modules/modals.js';
+
+// TODO: Phase 3.8 - Extract remaining modules from script.js
 // import { showView, refreshCurrentView, changeDate } from './modules/navigation.js';
 
 // ============================================
@@ -411,6 +435,29 @@ if (typeof window !== 'undefined') {
     window.getAvailableStaff = getAvailableStaff;
     window.getStaffById = getStaffById;
     window.getGuideQualificationsSummary = getGuideQualificationsSummary;
+
+    // Modals Module
+    window.closeModal = closeModal;
+    window.populateSelect = populateSelect;
+    window.openBookingModal = openBookingModal;
+    window.closeBookingModal = closeBookingModal;
+    window.openDaySummaryModal = openDaySummaryModal;
+    window.closeDaySummaryModal = closeDaySummaryModal;
+    window.openServiceModal = openServiceModal;
+    window.closeServiceModal = closeServiceModal;
+    window.handlePricingTypeChange = handlePricingTypeChange;
+    window.handleServiceTypeChange = handleServiceTypeChange;
+    window.openResourceModal = openResourceModal;
+    window.closeResourceModal = closeResourceModal;
+    window.toggleVehicleFields = toggleVehicleFields;
+    window.openBlockDatesModal = openBlockDatesModal;
+    window.closeBlockDatesModal = closeBlockDatesModal;
+    window.openInvoiceModal = openInvoiceModal;
+    window.closeInvoiceModal = closeInvoiceModal;
+    window.openExpenseModal = openExpenseModal;
+    window.closeExpenseModal = closeExpenseModal;
+    window.openCompletionModal = openCompletionModal;
+    window.closeCompletionModal = closeCompletionModal;
 }
 
 // ============================================
