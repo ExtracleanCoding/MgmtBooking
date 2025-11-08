@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV Tool with Charts - Professional Data Viewer & Editor</title>
+    <title>CSV Tool Complete - Professional Data Viewer, Editor & Charts</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -360,7 +360,7 @@
         .row-actions {
             display: flex;
             gap: 5px;
-            white-space: nowrap;
+            whitespace: nowrap;
         }
 
         .modal {
@@ -642,30 +642,6 @@
             margin-top: 15px;
         }
 
-        .color-palette {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .color-option {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 3px solid transparent;
-            transition: all 0.3s;
-        }
-
-        .color-option:hover {
-            transform: scale(1.2);
-        }
-
-        .color-option.selected {
-            border-color: #333;
-        }
-
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 1.6em;
@@ -697,8 +673,8 @@
 <body>
     <div class="container" id="mainContainer">
         <div class="header">
-            <h1>📊 CSV Tool with Charts - Professional Editor</h1>
-            <p>Upload, analyze, edit, visualize your data with Excel-like charts</p>
+            <h1>📊 CSV Tool Complete - Professional Editor & Charts</h1>
+            <p>Upload, analyze, edit, filter, and visualize your data with advanced features</p>
         </div>
 
         <div class="content">
@@ -711,7 +687,7 @@
                 </div>
                 <div class="upload-options">
                     <div class="option-group">
-                        <label>Delimiter:</label>
+                        <label>分隔符號 Delimiter:</label>
                         <select id="delimiter">
                             <option value="auto">🔍 Auto Detect</option>
                             <option value=",">Comma (,)</option>
@@ -722,20 +698,32 @@
                         </select>
                     </div>
                     <div class="option-group">
-                        <label>Header Mode:</label>
+                        <label>標題模式 Header Mode:</label>
                         <select id="headerMode">
                             <option value="auto">📊 Auto Detect</option>
                             <option value="none">No Header</option>
                             <option value="first">First Row</option>
+                            <option value="second">Second Row</option>
+                            <option value="afterComment">After Comments</option>
                         </select>
                     </div>
                     <div class="option-group">
-                        <label>Encoding:</label>
+                        <label>字元編碼 Encoding:</label>
                         <select id="encoding">
                             <option value="UTF-8">UTF-8</option>
-                            <option value="Big5">Big5</option>
-                            <option value="GBK">GBK</option>
+                            <option value="Big5">Big5 (繁體中文)</option>
+                            <option value="GBK">GBK (简体中文)</option>
+                            <option value="Shift-JIS">Shift-JIS (日本語)</option>
+                            <option value="EUC-KR">EUC-KR (한국어)</option>
                             <option value="ISO-8859-1">ISO-8859-1</option>
+                            <option value="Windows-1252">Windows-1252</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label>註解過濾 Comments:</label>
+                        <select id="commentFilter">
+                            <option value="none">Don't Filter</option>
+                            <option value="auto">Filter # // ; --</option>
                         </select>
                     </div>
                 </div>
@@ -746,12 +734,15 @@
                 <div class="info-bar">
                     <div id="statsInfo">Loading...</div>
                     <div>
-                        <label>Display Limit: </label>
+                        <label>顯示上限 Display Limit: </label>
                         <select id="displayLimit" style="padding: 4px 8px; border-radius: 4px;">
                             <option value="1000">1,000</option>
+                            <option value="3000">3,000</option>
                             <option value="5000">5,000</option>
                             <option value="10000" selected>10,000</option>
+                            <option value="20000">20,000</option>
                             <option value="50000">50,000</option>
+                            <option value="100000">100,000</option>
                             <option value="999999999">Unlimited</option>
                         </select>
                     </div>
@@ -759,14 +750,19 @@
 
                 <div class="controls">
                     <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="🔍 Search...">
+                        <input type="text" id="searchInput" placeholder="🔍 Search (press Enter)">
                         <button class="btn btn-primary" onclick="performSearch()">Search</button>
                     </div>
                     <button class="btn btn-chart" onclick="showChartModal()">📈 Create Chart</button>
-                    <button class="btn btn-warning" onclick="showFilterModal()">🔽 Filter</button>
+                    <button class="btn btn-warning" onclick="showFilterModal()">🔽 Filter Columns</button>
                     <button class="btn btn-primary" onclick="showColumnManager()">👁️ Show/Hide</button>
+                    <button class="btn btn-info" onclick="showStatistics()">📊 Statistics</button>
+                    <button class="btn btn-secondary" onclick="showWidthModal()">📐 Column Width</button>
                     <button class="btn btn-success" onclick="exportData('csv')">💾 CSV</button>
                     <button class="btn btn-success" onclick="exportData('json')">📄 JSON</button>
+                    <button class="btn btn-success" onclick="exportData('tsv')">📋 TSV</button>
+                    <button class="btn btn-success" onclick="exportData('txt')">📝 TXT</button>
+                    <button class="btn btn-secondary" onclick="copyToClipboard()">📑 Copy</button>
                     <button class="btn btn-primary" onclick="toggleFullscreen()">⛶ Fullscreen</button>
                 </div>
 
@@ -784,7 +780,7 @@
     <div class="modal" id="chartModal">
         <div class="modal-content xlarge">
             <div class="modal-header">
-                <h2>📊 Create Chart</h2>
+                <h2>📊 Create Chart - Excel Style</h2>
                 <button class="close-btn" onclick="closeModal('chartModal')">&times;</button>
             </div>
 
@@ -890,11 +886,11 @@
         </div>
     </div>
 
-    <!-- Other Modals (simplified for brevity) -->
+    <!-- Column Manager Modal -->
     <div class="modal" id="columnModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Show/Hide Columns</h2>
+                <h2>顯示/隱藏欄位 Show/Hide Columns</h2>
                 <button class="close-btn" onclick="closeModal('columnModal')">&times;</button>
             </div>
             <div class="column-list" id="columnList"></div>
@@ -904,18 +900,81 @@
         </div>
     </div>
 
+    <!-- Filter Modal -->
     <div class="modal" id="filterModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Column Filters</h2>
+                <h2>欄位篩選 Column Filters</h2>
                 <button class="close-btn" onclick="closeModal('filterModal')">&times;</button>
             </div>
             <div class="filter-controls">
                 <div id="filterList"></div>
                 <button class="btn btn-primary" onclick="addFilter()" style="margin-top: 10px;">+ Add Filter</button>
+                <button class="btn btn-danger" onclick="clearAllFilters()" style="margin-top: 10px;">Clear All</button>
             </div>
             <div style="margin-top: 20px; text-align: right;">
-                <button class="btn btn-primary" onclick="applyFilters(); closeModal('filterModal')">Apply</button>
+                <button class="btn btn-primary" onclick="applyFilters(); renderTable(); closeModal('filterModal')">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Modal -->
+    <div class="modal" id="statsModal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2>欄位統計 Column Statistics</h2>
+                <button class="close-btn" onclick="closeModal('statsModal')">&times;</button>
+            </div>
+            <div class="stats-grid" id="statsGrid"></div>
+        </div>
+    </div>
+
+    <!-- Column Ranking Modal -->
+    <div class="modal" id="rankingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="rankingTitle">Column Ranking</h2>
+                <button class="close-btn" onclick="closeModal('rankingModal')">&times;</button>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Show Top: </label>
+                <select id="rankingLimit" onchange="updateRanking()">
+                    <option value="10" selected>Top 10</option>
+                    <option value="15">Top 15</option>
+                    <option value="30">Top 30</option>
+                    <option value="50">Top 50</option>
+                </select>
+            </div>
+            <div id="rankingContent"></div>
+        </div>
+    </div>
+
+    <!-- Width Mode Modal -->
+    <div class="modal" id="widthModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>欄位寬度模式 Column Width Mode</h2>
+                <button class="close-btn" onclick="closeModal('widthModal')">&times;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button class="btn btn-primary" onclick="setColumnWidthMode('average')">📏 Average Width</button>
+                <button class="btn btn-info" onclick="setColumnWidthMode('fit')">📐 Best-Fit Width</button>
+                <button class="btn btn-secondary" onclick="setColumnWidthMode('fixed')">📌 Fixed Width (200px)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>確認刪除 Confirm Deletion</h2>
+                <button class="close-btn" onclick="closeModal('deleteModal')">&times;</button>
+            </div>
+            <p>Are you sure you want to delete this row?</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
             </div>
         </div>
     </div>
@@ -927,14 +986,19 @@
         let headers = [];
         let hiddenColumns = new Set();
         let columnFilters = [];
+        let sortLevels = [];
+        let rowToDelete = -1;
+        let currentRankingColumn = -1;
         let searchKeyword = '';
+        let columnOrder = [];
+        let columnWidths = {};
         let currentFile = null;
         let rawFileContent = '';
         let currentChart = null;
         let currentChartType = 'bar';
         let selectedDataColumns = new Set();
 
-        // Color schemes
+        // Color schemes for charts
         const colorSchemes = {
             default: ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b'],
             blue: ['#4facfe', '#00f2fe', '#2196F3', '#03A9F4', '#00BCD4'],
@@ -944,7 +1008,7 @@
             pastel: ['#FFB5E8', '#FF9CEE', '#FFCCF9', '#B28DFF', '#C5A3FF']
         };
 
-        // File handling
+        // File upload handling
         const fileInput = document.getElementById('csvFileInput');
         const uploadSection = document.getElementById('uploadSection');
         const dataSection = document.getElementById('dataSection');
@@ -952,9 +1016,16 @@
 
         fileInput.addEventListener('change', handleFileSelect);
 
+        // Drag and drop for entire page
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadSection.classList.add('drag-over');
+        });
+
+        document.addEventListener('dragleave', (e) => {
+            if (!e.relatedTarget) {
+                uploadSection.classList.remove('drag-over');
+            }
         });
 
         document.addEventListener('drop', (e) => {
@@ -975,7 +1046,7 @@
             const reader = new FileReader();
 
             fileInfo.style.display = 'block';
-            fileInfo.innerHTML = `Loading ${file.name}...`;
+            fileInfo.innerHTML = `Loading ${file.name} (${(file.size / 1024).toFixed(2)} KB)...`;
 
             reader.onload = (e) => {
                 try {
@@ -988,17 +1059,44 @@
                 }
             };
 
+            reader.onerror = () => {
+                fileInfo.innerHTML = '<span style="color: #dc3545;">Error reading file</span>';
+            };
+
             reader.readAsText(file, encoding);
         }
 
+        // Re-parse when options change
         document.getElementById('delimiter').addEventListener('change', () => {
             if (rawFileContent) parseAndLoadData();
         });
+        document.getElementById('headerMode').addEventListener('change', () => {
+            if (rawFileContent) parseAndLoadData();
+        });
+        document.getElementById('commentFilter').addEventListener('change', () => {
+            if (rawFileContent) parseAndLoadData();
+        });
+        document.getElementById('displayLimit').addEventListener('change', renderTable);
 
         function parseAndLoadData() {
-            let lines = rawFileContent.split('\n').filter(line => line.trim());
-            if (lines.length === 0) throw new Error('File is empty');
+            const commentFilter = document.getElementById('commentFilter').value;
+            let lines = rawFileContent.split('\n');
 
+            // Filter comment lines
+            if (commentFilter === 'auto') {
+                lines = lines.filter(line => {
+                    const trimmed = line.trim();
+                    return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('//') &&
+                           !trimmed.startsWith(';') && !trimmed.startsWith('--');
+                });
+            }
+
+            lines = lines.filter(line => line.trim());
+            if (lines.length === 0) {
+                throw new Error('File is empty after filtering');
+            }
+
+            // Detect delimiter
             let delimiter = document.getElementById('delimiter').value;
             if (delimiter === 'auto') {
                 delimiter = detectDelimiter(lines[0]);
@@ -1006,31 +1104,57 @@
                 delimiter = '\t';
             }
 
+            // Detect header
             const headerMode = document.getElementById('headerMode').value;
+            let headerRowIndex = 0;
             let dataStartIndex = 1;
 
-            if (headerMode === 'auto' || headerMode === 'first') {
-                headers = parseLine(lines[0], delimiter);
-            } else {
+            if (headerMode === 'none') {
                 headers = parseLine(lines[0], delimiter).map((_, i) => `Column ${i + 1}`);
                 dataStartIndex = 0;
+            } else if (headerMode === 'second') {
+                headerRowIndex = 1;
+                dataStartIndex = 2;
+            } else if (headerMode === 'auto') {
+                const firstRow = parseLine(lines[0], delimiter);
+                const isHeader = detectHeader(firstRow);
+                if (isHeader) {
+                    headerRowIndex = 0;
+                    dataStartIndex = 1;
+                } else {
+                    headers = firstRow.map((_, i) => `Column ${i + 1}`);
+                    dataStartIndex = 0;
+                }
             }
 
+            if (headerMode !== 'none' && headerMode !== 'auto' || (headerMode === 'auto' && dataStartIndex === 1)) {
+                headers = parseLine(lines[headerRowIndex], delimiter);
+            }
+
+            // Parse data rows
             csvData = [];
             for (let i = dataStartIndex; i < lines.length; i++) {
                 const values = parseLine(lines[i], delimiter);
-                if (values.length > 0) csvData.push(values);
+                if (values.length > 0 && values.some(v => v.trim())) {
+                    csvData.push(values);
+                }
             }
 
+            // Initialize
             hiddenColumns.clear();
             columnFilters = [];
+            sortLevels = [];
+            columnOrder = headers.map((_, i) => i);
+            columnWidths = {};
+            searchKeyword = '';
+
             applyFilters();
             renderTable();
             updateStatsInfo();
         }
 
         function detectDelimiter(line) {
-            const delimiters = [',', ';', '\t', '|'];
+            const delimiters = [',', ';', '\t', '|', ':'];
             let maxCount = 0;
             let bestDelimiter = ',';
 
@@ -1042,6 +1166,27 @@
                 }
             }
             return bestDelimiter;
+        }
+
+        function detectHeader(row) {
+            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const hashPattern = /^[0-9a-f]{32,}$/i;
+
+            let textCount = 0;
+            let numberCount = 0;
+
+            for (const cell of row) {
+                const trimmed = cell.trim();
+                if (uuidPattern.test(trimmed) || hashPattern.test(trimmed)) {
+                    return false;
+                }
+                if (isNaN(parseFloat(trimmed))) {
+                    textCount++;
+                } else {
+                    numberCount++;
+                }
+            }
+            return textCount > numberCount;
         }
 
         function parseLine(line, delimiter) {
@@ -1074,7 +1219,10 @@
         function applyFilters() {
             filteredData = csvData.filter(row => {
                 for (const filter of columnFilters) {
-                    const cellValue = (row[filter.column] || '').toString().toLowerCase();
+                    const colIdx = filter.column;
+                    if (colIdx === undefined) continue;
+
+                    const cellValue = (row[colIdx] || '').toString().toLowerCase();
                     const filterValue = filter.value.toLowerCase();
 
                     switch (filter.operator) {
@@ -1083,6 +1231,21 @@
                             break;
                         case 'equals':
                             if (cellValue !== filterValue) return false;
+                            break;
+                        case 'notEquals':
+                            if (cellValue === filterValue) return false;
+                            break;
+                        case 'startsWith':
+                            if (!cellValue.startsWith(filterValue)) return false;
+                            break;
+                        case 'endsWith':
+                            if (!cellValue.endsWith(filterValue)) return false;
+                            break;
+                        case 'greater':
+                            if (parseFloat(cellValue) <= parseFloat(filterValue)) return false;
+                            break;
+                        case 'less':
+                            if (parseFloat(cellValue) >= parseFloat(filterValue)) return false;
                             break;
                     }
                 }
@@ -1095,41 +1258,162 @@
             const tableBody = document.getElementById('tableBody');
             const limit = parseInt(document.getElementById('displayLimit').value);
 
+            // Render headers
             let headerHTML = '<tr>';
-            headers.forEach((header, index) => {
-                if (!hiddenColumns.has(index)) {
-                    headerHTML += `<th>${escapeHtml(header)}</th>`;
-                }
+            columnOrder.forEach((originalIndex, displayIndex) => {
+                if (hiddenColumns.has(originalIndex)) return;
+
+                const header = headers[originalIndex];
+                const isFiltered = columnFilters.some(f => f.column === originalIndex);
+                const sortLevel = sortLevels.findIndex(s => s.column === originalIndex);
+                const sortIcon = sortLevel >= 0 ?
+                    (sortLevels[sortLevel].ascending ? '▲' : '▼') + (sortLevel > 0 ? sortLevel + 1 : '') :
+                    '⇅';
+
+                const width = columnWidths[originalIndex] ? `width: ${columnWidths[originalIndex]}px;` : '';
+
+                headerHTML += `<th class="${isFiltered ? 'filtered' : ''}"
+                                   style="${width}"
+                                   data-col="${originalIndex}"
+                                   draggable="true"
+                                   ondragstart="dragStart(event)"
+                                   ondragover="dragOver(event)"
+                                   ondrop="drop(event)">
+                    <div class="th-content">
+                        <span class="th-text">${escapeHtml(header)}</span>
+                        <div class="th-buttons">
+                            <button class="th-btn" onclick="toggleSort(${originalIndex})" title="Sort">${sortIcon}</button>
+                            <button class="th-btn" onclick="showColumnRanking(${originalIndex})" title="Statistics">📊</button>
+                        </div>
+                    </div>
+                    <div class="resize-handle" onmousedown="startResize(event, ${originalIndex})"></div>
+                </th>`;
             });
-            headerHTML += '</tr>';
+            headerHTML += '<th style="width: 100px;">Actions</th></tr>';
             tableHead.innerHTML = headerHTML;
 
+            // Render data
             let bodyHTML = '';
             const displayData = filteredData.slice(0, limit);
 
             displayData.forEach((row, rowIndex) => {
                 bodyHTML += '<tr>';
-                headers.forEach((_, index) => {
-                    if (!hiddenColumns.has(index)) {
-                        let cellContent = escapeHtml(row[index] || '');
-                        if (searchKeyword && cellContent.toLowerCase().includes(searchKeyword.toLowerCase())) {
-                            const regex = new RegExp(`(${escapeRegex(searchKeyword)})`, 'gi');
-                            cellContent = cellContent.replace(regex, '<span class="highlight">$1</span>');
-                        }
-                        bodyHTML += `<td>${cellContent}</td>`;
+                columnOrder.forEach(originalIndex => {
+                    if (hiddenColumns.has(originalIndex)) return;
+
+                    let cellContent = escapeHtml(row[originalIndex] || '');
+
+                    if (searchKeyword) {
+                        const regex = new RegExp(`(${escapeRegex(searchKeyword)})`, 'gi');
+                        cellContent = cellContent.replace(regex, '<span class="highlight">$1</span>');
                     }
+
+                    const width = columnWidths[originalIndex] ? `max-width: ${columnWidths[originalIndex]}px;` : '';
+                    const actualIndex = csvData.indexOf(row);
+                    bodyHTML += `<td class="editable" style="${width}"
+                                     ondblclick="editCell(this, ${actualIndex}, ${originalIndex})">${cellContent}</td>`;
                 });
-                bodyHTML += '</tr>';
+
+                const actualIndex = csvData.indexOf(row);
+                bodyHTML += `<td class="row-actions">
+                    <button class="btn btn-danger btn-sm" onclick="deleteRow(${actualIndex})">Delete</button>
+                </td></tr>`;
             });
 
             tableBody.innerHTML = bodyHTML;
             updateStatsInfo();
         }
 
+        function toggleSort(columnIndex) {
+            const existingIndex = sortLevels.findIndex(s => s.column === columnIndex);
+
+            if (existingIndex >= 0) {
+                if (!sortLevels[existingIndex].ascending) {
+                    sortLevels.splice(existingIndex, 1);
+                } else {
+                    sortLevels[existingIndex].ascending = false;
+                }
+            } else {
+                sortLevels.push({ column: columnIndex, ascending: true });
+            }
+
+            filteredData.sort((a, b) => {
+                for (const sort of sortLevels) {
+                    const aVal = a[sort.column] || '';
+                    const bVal = b[sort.column] || '';
+
+                    const aNum = parseFloat(aVal);
+                    const bNum = parseFloat(bVal);
+
+                    let comparison = 0;
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        comparison = aNum - bNum;
+                    } else {
+                        comparison = aVal.toString().localeCompare(bVal.toString());
+                    }
+
+                    if (comparison !== 0) {
+                        return sort.ascending ? comparison : -comparison;
+                    }
+                }
+                return 0;
+            });
+
+            renderTable();
+        }
+
+        function editCell(cell, rowIndex, colIndex) {
+            if (cell.classList.contains('editing')) return;
+
+            const currentValue = csvData[rowIndex][colIndex] || '';
+
+            cell.classList.add('editing');
+            cell.innerHTML = `<input type="text" value="${escapeHtml(currentValue)}"
+                                    onblur="saveCell(this, ${rowIndex}, ${colIndex})"
+                                    onkeydown="cellKeydown(event, ${rowIndex}, ${colIndex})">`;
+            cell.querySelector('input').focus();
+            cell.querySelector('input').select();
+        }
+
+        function saveCell(input, rowIndex, colIndex) {
+            const newValue = input.value;
+            csvData[rowIndex][colIndex] = newValue;
+            applyFilters();
+            renderTable();
+        }
+
+        function cellKeydown(event, rowIndex, colIndex) {
+            if (event.key === 'Enter') {
+                event.target.blur();
+            } else if (event.key === 'Escape') {
+                applyFilters();
+                renderTable();
+            }
+        }
+
+        function deleteRow(rowIndex) {
+            rowToDelete = rowIndex;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function confirmDelete() {
+            if (rowToDelete >= 0) {
+                csvData.splice(rowToDelete, 1);
+                applyFilters();
+                renderTable();
+                rowToDelete = -1;
+            }
+            closeModal('deleteModal');
+        }
+
         function performSearch() {
             searchKeyword = document.getElementById('searchInput').value;
             renderTable();
         }
+
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
 
         function showColumnManager() {
             const columnList = document.getElementById('columnList');
@@ -1179,9 +1463,15 @@
                         <select onchange="columnFilters[${index}].operator = this.value">
                             <option value="contains" ${filter.operator === 'contains' ? 'selected' : ''}>Contains</option>
                             <option value="equals" ${filter.operator === 'equals' ? 'selected' : ''}>Equals</option>
+                            <option value="notEquals" ${filter.operator === 'notEquals' ? 'selected' : ''}>Not Equals</option>
+                            <option value="startsWith" ${filter.operator === 'startsWith' ? 'selected' : ''}>Starts With</option>
+                            <option value="endsWith" ${filter.operator === 'endsWith' ? 'selected' : ''}>Ends With</option>
+                            <option value="greater" ${filter.operator === 'greater' ? 'selected' : ''}>Greater Than</option>
+                            <option value="less" ${filter.operator === 'less' ? 'selected' : ''}>Less Than</option>
                         </select>
                         <input type="text" value="${escapeHtml(filter.value)}"
-                               oninput="columnFilters[${index}].value = this.value">
+                               oninput="columnFilters[${index}].value = this.value"
+                               placeholder="Filter value...">
                         <button class="btn btn-danger btn-sm" onclick="removeFilter(${index})">✕</button>
                     </div>
                 `;
@@ -1200,6 +1490,179 @@
             updateFilterList();
         }
 
+        function clearAllFilters() {
+            columnFilters = [];
+            updateFilterList();
+            applyFilters();
+            renderTable();
+        }
+
+        function showStatistics() {
+            const statsGrid = document.getElementById('statsGrid');
+            let html = '';
+
+            headers.forEach((header, index) => {
+                const columnData = csvData.map(row => row[index]).filter(val => val !== undefined && val !== '');
+                const numericData = columnData.map(val => parseFloat(val)).filter(val => !isNaN(val));
+
+                let stats = {
+                    total: columnData.length,
+                    unique: new Set(columnData).size,
+                    empty: csvData.length - columnData.length
+                };
+
+                if (numericData.length > 0) {
+                    stats.min = Math.min(...numericData).toFixed(2);
+                    stats.max = Math.max(...numericData).toFixed(2);
+                    stats.avg = (numericData.reduce((a, b) => a + b, 0) / numericData.length).toFixed(2);
+                }
+
+                html += `
+                    <div class="stat-card">
+                        <h3>${escapeHtml(header)}</h3>
+                        <p><strong>Total:</strong> ${stats.total}</p>
+                        <p><strong>Unique:</strong> ${stats.unique}</p>
+                        <p><strong>Empty:</strong> ${stats.empty}</p>
+                        ${numericData.length > 0 ? `
+                            <p><strong>Min:</strong> ${stats.min}</p>
+                            <p><strong>Max:</strong> ${stats.max}</p>
+                            <p><strong>Avg:</strong> ${stats.avg}</p>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            statsGrid.innerHTML = html;
+            document.getElementById('statsModal').classList.add('active');
+        }
+
+        function showColumnRanking(columnIndex) {
+            currentRankingColumn = columnIndex;
+            document.getElementById('rankingTitle').textContent = `📊 ${headers[columnIndex]} - Value Distribution`;
+            updateRanking();
+            document.getElementById('rankingModal').classList.add('active');
+        }
+
+        function updateRanking() {
+            if (currentRankingColumn < 0) return;
+
+            const limit = parseInt(document.getElementById('rankingLimit').value);
+            const columnData = csvData.map(row => row[currentRankingColumn] || '');
+            const valueCounts = {};
+
+            columnData.forEach(val => {
+                valueCounts[val] = (valueCounts[val] || 0) + 1;
+            });
+
+            const sorted = Object.entries(valueCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit);
+
+            const total = columnData.length;
+            let html = '<div class="ranking-list">';
+
+            sorted.forEach(([value, count], index) => {
+                const percentage = ((count / total) * 100).toFixed(2);
+                html += `
+                    <div class="ranking-item">
+                        <span><strong>#${index + 1}</strong> ${escapeHtml(value) || '(empty)'}</span>
+                        <span>${count} (${percentage}%)</span>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            document.getElementById('rankingContent').innerHTML = html;
+        }
+
+        function showWidthModal() {
+            document.getElementById('widthModal').classList.add('active');
+        }
+
+        function setColumnWidthMode(mode) {
+            const tableContainer = document.getElementById('tableContainer');
+
+            if (mode === 'average') {
+                const avgWidth = Math.floor(tableContainer.offsetWidth / (headers.length - hiddenColumns.size + 1));
+                headers.forEach((_, index) => {
+                    columnWidths[index] = avgWidth;
+                });
+            } else if (mode === 'fit') {
+                headers.forEach((header, index) => {
+                    const maxLength = Math.max(
+                        header.length,
+                        ...csvData.slice(0, 100).map(row => (row[index] || '').toString().length)
+                    );
+                    columnWidths[index] = Math.min(Math.max(maxLength * 8, 100), 400);
+                });
+            } else if (mode === 'fixed') {
+                headers.forEach((_, index) => {
+                    columnWidths[index] = 200;
+                });
+            }
+
+            renderTable();
+            closeModal('widthModal');
+        }
+
+        // Column resizing
+        let resizingColumn = -1;
+        let resizeStartX = 0;
+        let resizeStartWidth = 0;
+
+        function startResize(event, columnIndex) {
+            event.stopPropagation();
+            resizingColumn = columnIndex;
+            resizeStartX = event.clientX;
+            resizeStartWidth = columnWidths[columnIndex] || event.target.parentElement.offsetWidth;
+
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+        }
+
+        function handleResize(event) {
+            if (resizingColumn < 0) return;
+            const diff = event.clientX - resizeStartX;
+            columnWidths[resizingColumn] = Math.max(50, resizeStartWidth + diff);
+            renderTable();
+        }
+
+        function stopResize() {
+            resizingColumn = -1;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Column drag and drop reordering
+        let draggedColumn = -1;
+
+        function dragStart(event) {
+            draggedColumn = parseInt(event.target.dataset.col);
+            event.target.classList.add('dragging');
+        }
+
+        function dragOver(event) {
+            event.preventDefault();
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const targetColumn = parseInt(event.currentTarget.dataset.col);
+
+            if (draggedColumn !== targetColumn) {
+                const draggedIndex = columnOrder.indexOf(draggedColumn);
+                const targetIndex = columnOrder.indexOf(targetColumn);
+
+                columnOrder.splice(draggedIndex, 1);
+                columnOrder.splice(targetIndex, 0, draggedColumn);
+
+                renderTable();
+            }
+
+            document.querySelectorAll('th').forEach(th => th.classList.remove('dragging'));
+            draggedColumn = -1;
+        }
+
         // Chart functions
         function showChartModal() {
             if (csvData.length === 0) {
@@ -1207,14 +1670,12 @@
                 return;
             }
 
-            // Populate column selectors
             const labelsSelect = document.getElementById('chartLabelsColumn');
             labelsSelect.innerHTML = '<option value="">Select column...</option>';
             headers.forEach((header, index) => {
                 labelsSelect.innerHTML += `<option value="${index}">${escapeHtml(header)}</option>`;
             });
 
-            // Populate data columns checkboxes
             const dataColumnsDiv = document.getElementById('chartDataColumns');
             dataColumnsDiv.innerHTML = '';
             headers.forEach((header, index) => {
@@ -1346,15 +1807,15 @@
 
         function exportData(format) {
             let content = '';
-            const visibleHeaders = headers.filter((_, i) => !hiddenColumns.has(i));
+            const visibleHeaders = columnOrder.filter(i => !hiddenColumns.has(i)).map(i => headers[i]);
             const visibleData = filteredData.map(row =>
-                headers.map((_, i) => !hiddenColumns.has(i) ? row[i] || '' : null).filter(v => v !== null)
+                columnOrder.filter(i => !hiddenColumns.has(i)).map(i => row[i] || '')
             );
 
             if (format === 'csv') {
-                content = visibleHeaders.join(',') + '\n';
+                content = visibleHeaders.map(escapeCSVValue).join(',') + '\n';
                 visibleData.forEach(row => {
-                    content += row.join(',') + '\n';
+                    content += row.map(escapeCSVValue).join(',') + '\n';
                 });
                 downloadFile(content, 'export.csv', 'text/csv');
             } else if (format === 'json') {
@@ -1367,7 +1828,29 @@
                 });
                 content = JSON.stringify(jsonData, null, 2);
                 downloadFile(content, 'export.json', 'application/json');
+            } else if (format === 'tsv') {
+                content = visibleHeaders.join('\t') + '\n';
+                visibleData.forEach(row => {
+                    content += row.join('\t') + '\n';
+                });
+                downloadFile(content, 'export.tsv', 'text/tab-separated-values');
+            } else if (format === 'txt') {
+                content = visibleHeaders.join(' | ') + '\n';
+                content += '-'.repeat(visibleHeaders.join(' | ').length) + '\n';
+                visibleData.forEach(row => {
+                    content += row.join(' | ') + '\n';
+                });
+                downloadFile(content, 'export.txt', 'text/plain');
             }
+        }
+
+        function escapeCSVValue(value) {
+            if (value === undefined || value === null) return '';
+            const stringValue = String(value);
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
         }
 
         function downloadFile(content, filename, mimeType) {
@@ -1380,6 +1863,25 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        async function copyToClipboard() {
+            const visibleHeaders = columnOrder.filter(i => !hiddenColumns.has(i)).map(i => headers[i]);
+            const visibleData = filteredData.map(row =>
+                columnOrder.filter(i => !hiddenColumns.has(i)).map(i => row[i] || '')
+            );
+
+            let text = visibleHeaders.map(escapeCSVValue).join(',') + '\n';
+            visibleData.forEach(row => {
+                text += row.map(escapeCSVValue).join(',') + '\n';
+            });
+
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('✓ Data copied to clipboard!');
+            } catch (err) {
+                alert('Failed to copy to clipboard');
+            }
         }
 
         function toggleFullscreen() {
@@ -1395,7 +1897,7 @@
             const total = csvData.length;
             const cols = headers.length - hiddenColumns.size;
             document.getElementById('statsInfo').textContent =
-                `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${cols} columns`;
+                `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${cols} visible columns`;
         }
 
         function escapeHtml(text) {
@@ -1409,17 +1911,11 @@
             return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
-        document.getElementById('searchInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') performSearch();
-        });
-
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.classList.remove('active');
             });
         });
-
-        document.getElementById('displayLimit').addEventListener('change', renderTable);
     </script>
 </body>
 </html>
