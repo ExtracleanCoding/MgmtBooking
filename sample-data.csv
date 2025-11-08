@@ -1,0 +1,21 @@
+Name,Email,Phone,City,Country,Age,Department,Salary,Join Date,Status
+John Smith,john.smith@example.com,+1-555-0101,New York,USA,32,Engineering,85000,2020-01-15,Active
+Sarah Johnson,sarah.j@example.com,+1-555-0102,Los Angeles,USA,28,Marketing,72000,2021-03-22,Active
+Michael Chen,m.chen@example.com,+1-555-0103,San Francisco,USA,35,Engineering,95000,2019-07-10,Active
+Emily Davis,emily.davis@example.com,+1-555-0104,Chicago,USA,29,Sales,68000,2021-05-18,Active
+David Wilson,d.wilson@example.com,+1-555-0105,Boston,USA,41,Management,110000,2018-02-28,Active
+Lisa Anderson,lisa.a@example.com,+1-555-0106,Seattle,USA,26,Design,65000,2022-01-10,Active
+James Martinez,james.m@example.com,+1-555-0107,Austin,USA,33,Engineering,88000,2020-09-05,Active
+Jennifer Taylor,jen.taylor@example.com,+1-555-0108,Miami,USA,30,Marketing,70000,2021-11-12,Active
+Robert Brown,rob.brown@example.com,+1-555-0109,Denver,USA,38,Sales,78000,2019-04-20,Active
+Amanda White,amanda.w@example.com,+1-555-0110,Portland,USA,27,Design,67000,2022-03-15,Active
+Christopher Lee,chris.lee@example.com,+1-555-0111,Phoenix,USA,36,Engineering,92000,2019-12-01,Active
+Michelle Garcia,m.garcia@example.com,+1-555-0112,San Diego,USA,31,Marketing,73000,2020-08-25,Active
+Daniel Rodriguez,dan.rod@example.com,+1-555-0113,Dallas,USA,34,Sales,76000,2020-06-30,Active
+Jessica Martinez,jess.m@example.com,+1-555-0114,Atlanta,USA,29,Design,69000,2021-09-18,Active
+Thomas Anderson,tom.anderson@example.com,+1-555-0115,Nashville,USA,40,Management,105000,2018-11-05,Active
+Maria Hernandez,maria.h@example.com,+1-555-0116,Charlotte,USA,28,Engineering,86000,2021-02-14,Active
+Charles Lopez,charles.l@example.com,+1-555-0117,Houston,USA,37,Sales,80000,2019-08-22,Active
+Patricia Wilson,pat.wilson@example.com,+1-555-0118,Minneapolis,USA,32,Marketing,74000,2020-10-08,Active
+Mark Johnson,mark.j@example.com,+1-555-0119,Detroit,USA,39,Engineering,94000,2019-03-17,Active
+Karen Brown,karen.b@example.com,+1-555-0120,Philadelphia,USA,30,Design,71000,2021-07-25,On Leave
