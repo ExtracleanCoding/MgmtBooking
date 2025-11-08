@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSV Tool Complete - Professional Data Viewer, Editor & Charts</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -874,10 +876,18 @@
 
                 <div style="text-align: center; margin: 20px 0;">
                     <button class="btn btn-primary" onclick="updateChartPreview()">🔄 Update Preview</button>
+                    <button class="btn btn-info" onclick="resetZoom()">🔍 Reset Zoom</button>
                     <button class="btn btn-success" onclick="downloadChart()">💾 Download Chart</button>
                 </div>
 
                 <div class="chart-container-wrapper">
+                    <div style="background: #e8eaff; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.9em;">
+                        <strong>💡 Zoom Controls:</strong><br>
+                        • <strong>Drag to Zoom:</strong> Click and drag on the chart to select an area to zoom in<br>
+                        • <strong>Pan:</strong> Hold Shift and drag to pan around the zoomed chart<br>
+                        • <strong>Scroll to Zoom:</strong> Use mouse wheel to zoom in/out<br>
+                        • <strong>Reset:</strong> Click "Reset Zoom" button to restore full view
+                    </div>
                     <div class="chart-canvas-container">
                         <canvas id="chartCanvas"></canvas>
                     </div>
@@ -1774,6 +1784,33 @@
                         legend: {
                             display: showLegend,
                             position: 'top'
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                    speed: 0.1
+                                },
+                                drag: {
+                                    enabled: true,
+                                    backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                                    borderColor: 'rgba(102, 126, 234, 0.8)',
+                                    borderWidth: 2
+                                },
+                                mode: 'xy',
+                                onZoomComplete: function({chart}) {
+                                    console.log('Zoom applied');
+                                }
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'xy',
+                                modifierKey: 'shift'
+                            },
+                            limits: {
+                                x: {min: 'original', max: 'original'},
+                                y: {min: 'original', max: 'original'}
+                            }
                         }
                     },
                     scales: currentChartType !== 'pie' && currentChartType !== 'doughnut' && currentChartType !== 'radar' && currentChartType !== 'polarArea' ? {
@@ -1803,6 +1840,16 @@
             a.href = url;
             a.download = 'chart.png';
             a.click();
+        }
+
+        function resetZoom() {
+            if (!currentChart) {
+                alert('Please create a chart first!');
+                return;
+            }
+
+            currentChart.resetZoom();
+            console.log('Zoom reset to original view');
         }
 
         function exportData(format) {
