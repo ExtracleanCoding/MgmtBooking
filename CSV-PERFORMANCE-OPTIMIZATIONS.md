@@ -230,7 +230,7 @@ tableContainer.addEventListener('scroll', () => {
 To change virtual scroll behavior, edit these variables:
 
 ```javascript
-// Line ~1015 in csv-tool-with-charts.html
+// Line ~1015 in csv-tool-ai-analysis.html
 let rowHeight = 41;           // Increase if rows are taller
 let visibleRowCount = 50;     // Increase for more buffering
 let scrollBuffer = 10;        // Increase to reduce white flashes

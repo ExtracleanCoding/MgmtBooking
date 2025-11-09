@@ -288,7 +288,7 @@ zoom: {
 
 ## 🚀 Quick Start
 
-1. **Open** `csv-tool-with-charts.html`
+1. **Open** `csv-tool-ai-analysis.html`
 2. **Upload** your CSV file
 3. **Create** a chart (Bar or Line recommended)
 4. **Drag** on chart to zoom in

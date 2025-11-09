@@ -500,7 +500,7 @@ The included `sample-data.csv` has perfect data for charting:
 
 | File | Description |
 |------|-------------|
-| `csv-tool-with-charts.html` | Complete tool with charting |
+| `csv-tool-ai-analysis.html` | Complete tool with charting & AI analysis |
 | `sample-data.csv` | Test data (20 employees) |
 | `CSV-CHARTS-README.md` | This documentation |
 
