@@ -1009,6 +1009,12 @@
         let currentChartType = 'bar';
         let selectedDataColumns = new Set();
 
+        // Virtual scrolling state
+        let virtualScrollTop = 0;
+        let rowHeight = 41; // Approximate row height in pixels
+        let visibleRowCount = 50; // Number of rows to render at once
+        let scrollBuffer = 10; // Extra rows to render above/below
+
         // Color schemes for charts
         const colorSchemes = {
             default: ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b'],
@@ -1057,13 +1063,18 @@
             const reader = new FileReader();
 
             fileInfo.style.display = 'block';
-            fileInfo.innerHTML = `Loading ${file.name} (${(file.size / 1024).toFixed(2)} KB)...`;
+            fileInfo.innerHTML = `⏳ Loading ${file.name} (${(file.size / 1024).toFixed(2)} KB)...`;
 
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     rawFileContent = e.target.result;
+                    fileInfo.innerHTML = `⏳ Parsing data... Please wait.`;
+
+                    // Use setTimeout to allow UI to update
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
                     parseAndLoadData();
-                    fileInfo.innerHTML = `✓ ${file.name} loaded - ${csvData.length} rows, ${headers.length} columns`;
+                    fileInfo.innerHTML = `✓ ${file.name} loaded - ${csvData.length.toLocaleString()} rows, ${headers.length} columns`;
                     dataSection.style.display = 'block';
                 } catch (error) {
                     fileInfo.innerHTML = `<span style="color: #dc3545;">Error: ${error.message}</span>`;
@@ -1299,6 +1310,7 @@
         function renderTable() {
             const tableHead = document.getElementById('tableHead');
             const tableBody = document.getElementById('tableBody');
+            const tableContainer = document.getElementById('tableContainer');
             const limit = parseInt(document.getElementById('displayLimit').value);
 
             // Render headers
@@ -1335,9 +1347,23 @@
             headerHTML += '<th style="width: 100px;">Actions</th></tr>';
             tableHead.innerHTML = headerHTML;
 
-            // Render data
-            let bodyHTML = '';
+            // Get display data
             const displayData = filteredData.slice(0, limit);
+
+            // Use virtual scrolling for large datasets
+            if (displayData.length > 100) {
+                renderTableVirtual(displayData);
+            } else {
+                renderTableDirect(displayData);
+            }
+
+            updateStatsInfo();
+        }
+
+        function renderTableDirect(displayData) {
+            // Standard rendering for small datasets
+            const tableBody = document.getElementById('tableBody');
+            let bodyHTML = '';
 
             displayData.forEach((row, rowIndex) => {
                 bodyHTML += '<tr>';
@@ -1364,7 +1390,69 @@
             });
 
             tableBody.innerHTML = bodyHTML;
-            updateStatsInfo();
+        }
+
+        function renderTableVirtual(displayData) {
+            // Virtual scrolling for large datasets
+            const tableContainer = document.getElementById('tableContainer');
+            const tableBody = document.getElementById('tableBody');
+
+            // Setup scroll listener if not already set
+            if (!tableContainer.hasAttribute('data-virtual-scroll')) {
+                tableContainer.setAttribute('data-virtual-scroll', 'true');
+                tableContainer.addEventListener('scroll', () => {
+                    requestAnimationFrame(() => renderTableVirtual(displayData));
+                });
+            }
+
+            const scrollTop = tableContainer.scrollTop;
+            const containerHeight = tableContainer.clientHeight;
+
+            // Calculate visible range
+            const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - scrollBuffer);
+            const endRow = Math.min(displayData.length, Math.ceil((scrollTop + containerHeight) / rowHeight) + scrollBuffer);
+
+            // Create spacer to maintain scroll height
+            const totalHeight = displayData.length * rowHeight;
+            const offsetY = startRow * rowHeight;
+
+            let bodyHTML = `<tr><td colspan="100" style="height: ${offsetY}px; padding: 0; border: none;"></td></tr>`;
+
+            // Render only visible rows
+            for (let rowIndex = startRow; rowIndex < endRow; rowIndex++) {
+                const row = displayData[rowIndex];
+                if (!row) continue;
+
+                bodyHTML += '<tr>';
+                columnOrder.forEach(originalIndex => {
+                    if (hiddenColumns.has(originalIndex)) return;
+
+                    let cellContent = escapeHtml(row[originalIndex] || '');
+
+                    if (searchKeyword) {
+                        const regex = new RegExp(`(${escapeRegex(searchKeyword)})`, 'gi');
+                        cellContent = cellContent.replace(regex, '<span class="highlight">$1</span>');
+                    }
+
+                    const width = columnWidths[originalIndex] ? `max-width: ${columnWidths[originalIndex]}px;` : '';
+                    const actualIndex = csvData.indexOf(row);
+                    bodyHTML += `<td class="editable" style="${width}"
+                                     ondblclick="editCell(this, ${actualIndex}, ${originalIndex})">${cellContent}</td>`;
+                });
+
+                const actualIndex = csvData.indexOf(row);
+                bodyHTML += `<td class="row-actions">
+                    <button class="btn btn-danger btn-sm" onclick="deleteRow(${actualIndex})">Delete</button>
+                </td></tr>`;
+            }
+
+            // Add bottom spacer
+            const bottomSpace = totalHeight - (endRow * rowHeight);
+            if (bottomSpace > 0) {
+                bodyHTML += `<tr><td colspan="100" style="height: ${bottomSpace}px; padding: 0; border: none;"></td></tr>`;
+            }
+
+            tableBody.innerHTML = bodyHTML;
         }
 
         function toggleSort(columnIndex) {
@@ -1973,11 +2061,17 @@
         }
 
         function updateStatsInfo() {
-            const visible = filteredData.length;
+            const limit = parseInt(document.getElementById('displayLimit').value);
+            const visible = Math.min(filteredData.length, limit);
             const total = csvData.length;
             const cols = headers.length - hiddenColumns.size;
-            document.getElementById('statsInfo').textContent =
-                `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${cols} visible columns`;
+            const virtualMode = visible > 100;
+
+            let statsText = `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${cols} visible columns`;
+            if (virtualMode) {
+                statsText += ' | ⚡ Virtual Scrolling Active (high performance mode)';
+            }
+            document.getElementById('statsInfo').textContent = statsText;
         }
 
         function escapeHtml(text) {
