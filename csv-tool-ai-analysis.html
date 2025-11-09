@@ -908,6 +908,7 @@
                     <button class="btn btn-primary" onclick="updateChartPreview()">🔄 Update Preview</button>
                     <button class="btn btn-info" onclick="resetZoom()">🔍 Reset Zoom</button>
                     <button class="btn btn-success" onclick="downloadChart()">💾 Download Chart</button>
+                    <button class="btn btn-chart" onclick="analyzeChartWithAI()" title="Get AI insights about this chart">✨ AI Analyze Chart</button>
                 </div>
 
                 <div class="chart-container-wrapper">
@@ -2741,6 +2742,158 @@ Format your response clearly with headings and bullet points.`;
                 console.error('Copy failed:', err);
                 alert('❌ Failed to copy to clipboard');
             });
+        }
+
+        // Analyze chart with Gemini AI
+        async function analyzeChartWithAI() {
+            // Load settings
+            geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+            geminiModel = localStorage.getItem('geminiModel') || '';
+
+            // Check if settings are configured
+            if (!geminiApiKey || !geminiModel) {
+                alert('⚠️ Please configure Gemini AI settings first (click "🤖 AI Settings")');
+                showGeminiSettings();
+                return;
+            }
+
+            // Check if chart exists
+            if (!currentChart) {
+                alert('⚠️ Please generate a chart first');
+                return;
+            }
+
+            // Get chart configuration
+            const labelsColumnIndex = parseInt(document.getElementById('chartLabelsColumn').value);
+            const labelsColumnName = headers[labelsColumnIndex] || 'Labels';
+            const chartType = document.getElementById('chartType').value;
+
+            // Get selected data columns
+            const dataColumnIndices = Array.from(selectedDataColumns);
+            const dataColumnNames = dataColumnIndices.map(idx => headers[idx]);
+
+            if (dataColumnIndices.length === 0) {
+                alert('⚠️ No data columns selected for the chart');
+                return;
+            }
+
+            // Get chart data (from filteredData, limited to what's being charted)
+            const limit = parseInt(document.getElementById('displayLimit').value);
+            const chartData = filteredData.slice(0, Math.min(limit, 100)); // Use first 100 rows for analysis
+
+            // Build data summary
+            const labels = chartData.map(row => row[labelsColumnIndex]);
+            const dataSummary = dataColumnIndices.map(colIdx => {
+                const values = chartData.map(row => row[colIdx]);
+                return {
+                    column: headers[colIdx],
+                    values: values,
+                    min: Math.min(...values.map(v => parseFloat(v) || 0)),
+                    max: Math.max(...values.map(v => parseFloat(v) || 0)),
+                    avg: values.reduce((sum, v) => sum + (parseFloat(v) || 0), 0) / values.length
+                };
+            });
+
+            // Open analysis modal and show loading
+            document.getElementById('geminiAnalysisModal').classList.add('active');
+            const statusDiv = document.getElementById('geminiAnalysisStatus');
+            const resultDiv = document.getElementById('geminiAnalysisResult');
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#d1ecf1';
+            statusDiv.style.color = '#0c5460';
+            resultDiv.textContent = '';
+
+            try {
+                // Build comprehensive prompt for chart analysis
+                const prompt = `You are a data visualization analyst. Analyze the following chart data and provide insights.
+
+Chart Information:
+- Chart Type: ${chartType.toUpperCase()}
+- X-Axis (Labels): ${labelsColumnName}
+- Y-Axis Data Columns: ${dataColumnNames.join(', ')}
+- Number of Data Points: ${chartData.length}
+
+Data Summary:
+${dataSummary.map(ds => `
+- ${ds.column}:
+  * Range: ${ds.min.toFixed(2)} to ${ds.max.toFixed(2)}
+  * Average: ${ds.avg.toFixed(2)}
+  * Values: ${ds.values.slice(0, 10).join(', ')}${ds.values.length > 10 ? '...' : ''}
+`).join('\n')}
+
+Labels (X-axis values):
+${labels.slice(0, 20).join(', ')}${labels.length > 20 ? '... (' + (labels.length - 20) + ' more)' : ''}
+
+Please provide:
+1. **Trend Analysis**: What trends do you see in the data?
+2. **Pattern Recognition**: Any recurring patterns or cycles?
+3. **Anomalies**: Notable spikes, drops, or outliers?
+4. **Comparisons**: If multiple data series, how do they compare?
+5. **Insights**: What story does this chart tell?
+6. **Recommendations**: What should be investigated further?
+
+Format your response clearly with headings and bullet points. Focus on actionable insights.`;
+
+                console.log('Sending chart analysis request to Gemini API...');
+                console.log('Chart type:', chartType);
+                console.log('Data columns:', dataColumnNames);
+                console.log('Data points:', chartData.length);
+
+                // Call Gemini API
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: prompt
+                                }]
+                            }],
+                            generationConfig: {
+                                temperature: 0.7,
+                                topK: 40,
+                                topP: 0.95,
+                                maxOutputTokens: 2048,
+                            }
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Gemini API Response:', data);
+
+                // Extract the generated text
+                if (data.candidates && data.candidates.length > 0) {
+                    const analysis = data.candidates[0].content.parts[0].text;
+
+                    // Hide loading, show result
+                    statusDiv.style.display = 'none';
+                    resultDiv.innerHTML = `<div style="border-bottom: 2px solid #4285f4; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h3 style="color: #4285f4; margin: 0;">📊 Chart Analysis: ${chartType.toUpperCase()} Chart</h3>
+                        <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">Analyzing: ${dataColumnNames.join(', ')}</p>
+                    </div>` + formatAnalysisResult(analysis);
+                } else {
+                    throw new Error('No analysis generated');
+                }
+
+            } catch (error) {
+                console.error('Gemini Chart Analysis Error:', error);
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.innerHTML = `❌ Error: ${error.message}<br><small>Check console for details</small>`;
+                resultDiv.textContent = '';
+            }
         }
 
         // Load Gemini settings on page load
