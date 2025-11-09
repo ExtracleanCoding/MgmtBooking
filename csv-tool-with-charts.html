@@ -1418,16 +1418,20 @@
             tableBody.innerHTML = bodyHTML;
         }
 
-        function renderTableVirtual(displayData) {
+        function renderTableVirtual(passedDisplayData) {
             // Virtual scrolling for large datasets
             const tableContainer = document.getElementById('tableContainer');
             const tableBody = document.getElementById('tableBody');
+
+            // Always recalculate display data from current state to avoid stale closures
+            const limit = parseInt(document.getElementById('displayLimit').value);
+            const displayData = filteredData.slice(0, limit);
 
             // Setup scroll listener if not already set
             if (!tableContainer.hasAttribute('data-virtual-scroll')) {
                 tableContainer.setAttribute('data-virtual-scroll', 'true');
                 tableContainer.addEventListener('scroll', () => {
-                    requestAnimationFrame(() => renderTableVirtual(displayData));
+                    requestAnimationFrame(() => renderTableVirtual());
                 });
             }
 
