@@ -29,11 +29,20 @@ Create a professional, single-file HTML application for CSV data viewing, editin
    - Manual selection dropdown with 5 options
    - Handle escaped delimiters inside quoted fields
 
-4. **Smart Header Detection (6 modes):**
-   - **Auto Detect:** Analyze first row:
-     - Check for UUID patterns (8-4-4-4-12 hex format)
-     - Check for hash patterns (32+ hex characters)
-     - Compare text vs numeric ratio (more text = likely header)
+4. **Smart Header Detection (7 modes):**
+   - **Auto Detect:** Intelligent detection with priority order:
+     - First, scan first 200 rows to find "Timestamp" in Column A (case-insensitive)
+     - If found, use that row as header and show "(Auto-detected header at row N)"
+     - If not found, analyze first row:
+       - Check for UUID patterns (8-4-4-4-12 hex format)
+       - Check for hash patterns (32+ hex characters)
+       - Compare text vs numeric ratio (more text = likely header)
+   - **Find Timestamp:** Specifically search for "Timestamp" in Column A:
+     - Scan all rows until "Timestamp" is found in first column
+     - Use that row as header row
+     - Display "(Header found at row N)" message
+     - Throw error if not found: "Could not find 'Timestamp' in Column A"
+     - Ideal for log files with metadata/comments before actual data
    - **No Header:** Generate column names "Column 1", "Column 2", etc.
    - **First Row:** Use first row as headers
    - **Second Row:** Use second row as headers
@@ -531,7 +540,8 @@ Include these in `<head>`:
 □ File upload with drag-and-drop
 □ 7 encoding support
 □ 5 delimiter options with auto-detect
-□ 6 header detection modes
+□ 7 header detection modes (including "Find Timestamp")
+□ Smart "Timestamp" detection in Column A for log files
 □ Comment filtering
 □ Smart CSV parsing with quote handling
 □ Sticky table headers
@@ -566,8 +576,17 @@ Include these in `<head>`:
 
 ## ESTIMATED FILE SIZE
 
-- Total lines: ~1,970 lines
+- Total lines: ~2,020 lines
 - HTML structure: ~220 lines
 - CSS styles: ~670 lines
-- JavaScript logic: ~1,080 lines
+- JavaScript logic: ~1,130 lines
 - All in single HTML file
+
+## RECENT ENHANCEMENTS
+
+**Timestamp Header Detection (2025-11-09):**
+- Added "⏱️ Find Timestamp" mode to handle log files with metadata before actual data
+- Enhanced "Auto Detect" to prioritize finding "Timestamp" in Column A
+- Scans up to first 200 rows for auto-detect, all rows for explicit mode
+- Shows visual feedback: "(Header found at row N)" or "(Auto-detected header at row N)"
+- Perfect for capacity logs and system request logs with variable metadata lengths

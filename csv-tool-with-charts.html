@@ -703,6 +703,7 @@
                         <label>標題模式 Header Mode:</label>
                         <select id="headerMode">
                             <option value="auto">📊 Auto Detect</option>
+                            <option value="timestamp">⏱️ Find Timestamp</option>
                             <option value="none">No Header</option>
                             <option value="first">First Row</option>
                             <option value="second">Second Row</option>
@@ -1122,22 +1123,54 @@
             if (headerMode === 'none') {
                 headers = parseLine(lines[0], delimiter).map((_, i) => `Column ${i + 1}`);
                 dataStartIndex = 0;
+            } else if (headerMode === 'timestamp') {
+                // Find the row where Column A (first column) contains "Timestamp"
+                let foundTimestamp = false;
+                for (let i = 0; i < lines.length; i++) {
+                    const row = parseLine(lines[i], delimiter);
+                    if (row.length > 0 && row[0].trim().toLowerCase() === 'timestamp') {
+                        headerRowIndex = i;
+                        dataStartIndex = i + 1;
+                        foundTimestamp = true;
+                        fileInfo.innerHTML += ` <span style="color: #28a745;">(Header found at row ${i + 1})</span>`;
+                        break;
+                    }
+                }
+                if (!foundTimestamp) {
+                    throw new Error('Could not find "Timestamp" in Column A. Please use a different header mode.');
+                }
             } else if (headerMode === 'second') {
                 headerRowIndex = 1;
                 dataStartIndex = 2;
             } else if (headerMode === 'auto') {
-                const firstRow = parseLine(lines[0], delimiter);
-                const isHeader = detectHeader(firstRow);
-                if (isHeader) {
-                    headerRowIndex = 0;
-                    dataStartIndex = 1;
-                } else {
-                    headers = firstRow.map((_, i) => `Column ${i + 1}`);
-                    dataStartIndex = 0;
+                // First try to find "Timestamp" in Column A
+                let foundTimestamp = false;
+                for (let i = 0; i < Math.min(200, lines.length); i++) {
+                    const row = parseLine(lines[i], delimiter);
+                    if (row.length > 0 && row[0].trim().toLowerCase() === 'timestamp') {
+                        headerRowIndex = i;
+                        dataStartIndex = i + 1;
+                        foundTimestamp = true;
+                        fileInfo.innerHTML += ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1})</span>`;
+                        break;
+                    }
+                }
+
+                // If no timestamp found, use traditional auto-detect
+                if (!foundTimestamp) {
+                    const firstRow = parseLine(lines[0], delimiter);
+                    const isHeader = detectHeader(firstRow);
+                    if (isHeader) {
+                        headerRowIndex = 0;
+                        dataStartIndex = 1;
+                    } else {
+                        headers = firstRow.map((_, i) => `Column ${i + 1}`);
+                        dataStartIndex = 0;
+                    }
                 }
             }
 
-            if (headerMode !== 'none' && headerMode !== 'auto' || (headerMode === 'auto' && dataStartIndex === 1)) {
+            if (headerMode !== 'none' && headerMode !== 'auto' || (headerMode === 'auto' && dataStartIndex === 1) || headerMode === 'timestamp') {
                 headers = parseLine(lines[headerRowIndex], delimiter);
             }
 
