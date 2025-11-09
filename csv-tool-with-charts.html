@@ -797,7 +797,15 @@
                         </select>
 
                         <label style="margin-top: 15px;">Data Columns (Y-axis):</label>
-                        <div id="chartDataColumns" style="max-height: 200px; overflow-y: auto; margin-top: 8px;">
+                        <div style="display: flex; gap: 5px; margin-top: 8px;">
+                            <input type="text" id="chartColumnSearch" placeholder="🔍 Search columns..."
+                                   style="flex: 1; padding: 6px 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.9em;"
+                                   oninput="filterChartColumns()">
+                            <button class="btn btn-sm btn-secondary" onclick="clearAllChartColumns()" title="Clear all selections">
+                                ✕ Clear All
+                            </button>
+                        </div>
+                        <div id="chartDataColumns" style="max-height: 200px; overflow-y: auto; margin-top: 8px; border: 1px solid #e9ecef; border-radius: 6px; padding: 8px; background: white;">
                         </div>
 
                         <label style="margin-top: 15px;">Data Limit:</label>
@@ -1821,6 +1829,7 @@
             });
 
             selectedDataColumns.clear();
+            document.getElementById('chartColumnSearch').value = ''; // Clear search
             document.getElementById('chartModal').classList.add('active');
         }
 
@@ -1829,6 +1838,60 @@
                 selectedDataColumns.delete(columnIndex);
             } else {
                 selectedDataColumns.add(columnIndex);
+            }
+        }
+
+        function clearAllChartColumns() {
+            // Uncheck all checkboxes
+            headers.forEach((header, index) => {
+                const checkbox = document.getElementById(`chartCol_${index}`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+            });
+
+            // Clear the selection set
+            selectedDataColumns.clear();
+
+            // Show success feedback
+            const searchBox = document.getElementById('chartColumnSearch');
+            const originalPlaceholder = searchBox.placeholder;
+            searchBox.placeholder = '✓ All columns cleared';
+            setTimeout(() => {
+                searchBox.placeholder = originalPlaceholder;
+            }, 1500);
+        }
+
+        function filterChartColumns() {
+            const searchTerm = document.getElementById('chartColumnSearch').value.toLowerCase();
+            const dataColumnsDiv = document.getElementById('chartDataColumns');
+            const columnItems = dataColumnsDiv.querySelectorAll('.column-item');
+
+            let visibleCount = 0;
+            columnItems.forEach((item, index) => {
+                const label = item.querySelector('label');
+                const columnName = label.textContent.toLowerCase();
+
+                if (columnName.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Show message if no results
+            let noResultsMsg = dataColumnsDiv.querySelector('.no-results-msg');
+            if (visibleCount === 0 && searchTerm) {
+                if (!noResultsMsg) {
+                    noResultsMsg = document.createElement('div');
+                    noResultsMsg.className = 'no-results-msg';
+                    noResultsMsg.style.cssText = 'padding: 10px; text-align: center; color: #6c757d; font-size: 0.9em;';
+                    noResultsMsg.textContent = `No columns found matching "${searchTerm}"`;
+                    dataColumnsDiv.appendChild(noResultsMsg);
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
             }
         }
 
