@@ -1154,6 +1154,7 @@
                 let foundTimestamp = false;
                 let bestTimestampIndex = -1;
                 let bestScore = -1;
+                const candidates = []; // Track all candidates for debugging
 
                 for (let i = 0; i < lines.length; i++) {
                     const row = parseLine(lines[i], delimiter);
@@ -1178,6 +1179,8 @@
                             score += numericCount;
                         }
 
+                        candidates.push({ index: i, score: score, preview: row.slice(0, 3).join(', ') });
+
                         // Prefer headers with higher scores (more numeric data following)
                         if (score > bestScore) {
                             bestScore = score;
@@ -1186,10 +1189,20 @@
                     }
                 }
 
+                // Debug logging
+                console.log('🔍 Timestamp Detection Debug:');
+                console.log(`Found ${candidates.length} "Timestamp" candidates:`, candidates);
+                console.log(`Selected index: ${bestTimestampIndex}, score: ${bestScore}`);
+
                 if (bestTimestampIndex >= 0) {
                     headerRowIndex = bestTimestampIndex;
                     dataStartIndex = bestTimestampIndex + 1;
                     foundTimestamp = true;
+
+                    console.log(`Header will be from line index ${headerRowIndex}`);
+                    console.log(`Data will start from line index ${dataStartIndex}`);
+                    console.log(`Total lines in filtered array: ${lines.length}`);
+                    console.log(`First 3 lines of csvData will be from line indices ${dataStartIndex} to ${dataStartIndex + 2}`);
 
                     // Store detailed feedback about skipped rows
                     const skippedRows = bestTimestampIndex;
@@ -1282,6 +1295,16 @@
                 if (values.length > 0 && values.some(v => v.trim())) {
                     csvData.push(values);
                 }
+            }
+
+            // Debug: Show what was parsed
+            if (headerMode === 'timestamp') {
+                console.log(`📊 Parsed ${csvData.length} data rows`);
+                console.log('Headers:', headers.slice(0, 5));
+                console.log('First 3 data rows:');
+                csvData.slice(0, 3).forEach((row, idx) => {
+                    console.log(`  Row ${idx}: ${row.slice(0, 3).join(' | ')}`);
+                });
             }
 
             // Initialize
