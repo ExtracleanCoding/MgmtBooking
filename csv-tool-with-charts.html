@@ -753,8 +753,12 @@
 
                 <div class="controls">
                     <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="🔍 Search (press Enter)">
+                        <input type="text" id="searchInput" placeholder="🔍 Search data (press Enter)">
                         <button class="btn btn-primary" onclick="performSearch()">Search</button>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="columnSearchInput" placeholder="🔎 Filter columns..." oninput="filterTableColumns()">
+                        <button class="btn btn-secondary btn-sm" onclick="clearColumnSearch()" title="Clear column filter">✕</button>
                     </div>
                     <button class="btn btn-chart" onclick="showChartModal()">📈 Create Chart</button>
                     <button class="btn btn-warning" onclick="showFilterModal()">🔽 Filter Columns</button>
@@ -1009,6 +1013,7 @@
         let rowToDelete = -1;
         let currentRankingColumn = -1;
         let searchKeyword = '';
+        let columnSearchKeyword = '';
         let columnOrder = [];
         let columnWidths = {};
         let currentFile = null;
@@ -1209,6 +1214,8 @@
             columnOrder = headers.map((_, i) => i);
             columnWidths = {};
             searchKeyword = '';
+            columnSearchKeyword = '';
+            document.getElementById('columnSearchInput').value = '';
 
             applyFilters();
             renderTable();
@@ -1327,6 +1334,11 @@
                 if (hiddenColumns.has(originalIndex)) return;
 
                 const header = headers[originalIndex];
+
+                // Check column search filter
+                if (columnSearchKeyword && !header.toLowerCase().includes(columnSearchKeyword)) {
+                    return; // Skip this column if it doesn't match search
+                }
                 const isFiltered = columnFilters.some(f => f.column === originalIndex);
                 const sortLevel = sortLevels.findIndex(s => s.column === originalIndex);
                 const sortIcon = sortLevel >= 0 ?
@@ -1377,6 +1389,12 @@
                 bodyHTML += '<tr>';
                 columnOrder.forEach(originalIndex => {
                     if (hiddenColumns.has(originalIndex)) return;
+
+                    // Check column search filter
+                    const header = headers[originalIndex];
+                    if (columnSearchKeyword && !header.toLowerCase().includes(columnSearchKeyword)) {
+                        return; // Skip this column if it doesn't match search
+                    }
 
                     let cellContent = escapeHtml(row[originalIndex] || '');
 
@@ -1434,6 +1452,12 @@
                 bodyHTML += '<tr>';
                 columnOrder.forEach(originalIndex => {
                     if (hiddenColumns.has(originalIndex)) return;
+
+                    // Check column search filter
+                    const header = headers[originalIndex];
+                    if (columnSearchKeyword && !header.toLowerCase().includes(columnSearchKeyword)) {
+                        return; // Skip this column if it doesn't match search
+                    }
 
                     let cellContent = escapeHtml(row[originalIndex] || '');
 
@@ -1553,6 +1577,21 @@
         document.getElementById('searchInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') performSearch();
         });
+
+        function filterTableColumns() {
+            columnSearchKeyword = document.getElementById('columnSearchInput').value.toLowerCase();
+            renderTable();
+
+            // Visual feedback in stats
+            updateStatsInfo();
+        }
+
+        function clearColumnSearch() {
+            document.getElementById('columnSearchInput').value = '';
+            columnSearchKeyword = '';
+            renderTable();
+            updateStatsInfo();
+        }
 
         function showColumnManager() {
             const columnList = document.getElementById('columnList');
@@ -2127,10 +2166,21 @@
             const limit = parseInt(document.getElementById('displayLimit').value);
             const visible = Math.min(filteredData.length, limit);
             const total = csvData.length;
-            const cols = headers.length - hiddenColumns.size;
+
+            // Count visible columns after all filters
+            let visibleCols = 0;
+            headers.forEach((header, index) => {
+                if (hiddenColumns.has(index)) return;
+                if (columnSearchKeyword && !header.toLowerCase().includes(columnSearchKeyword)) return;
+                visibleCols++;
+            });
+
             const virtualMode = visible > 100;
 
-            let statsText = `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${cols} visible columns`;
+            let statsText = `Showing ${visible.toLocaleString()} of ${total.toLocaleString()} rows | ${visibleCols} visible columns`;
+            if (columnSearchKeyword) {
+                statsText += ` (filtered by "${columnSearchKeyword}")`;
+            }
             if (virtualMode) {
                 statsText += ' | ⚡ Virtual Scrolling Active (high performance mode)';
             }
