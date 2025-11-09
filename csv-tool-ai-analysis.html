@@ -2471,7 +2471,7 @@
         // Show Gemini settings modal
         function showGeminiSettings() {
             loadGeminiSettings();
-            showModal('geminiSettingsModal');
+            document.getElementById('geminiSettingsModal').classList.add('active');
         }
 
         // Toggle API key visibility
@@ -2597,7 +2597,7 @@
             }
 
             // Open analysis modal and show loading
-            showModal('geminiAnalysisModal');
+            document.getElementById('geminiAnalysisModal').classList.add('active');
             const statusDiv = document.getElementById('geminiAnalysisStatus');
             const resultDiv = document.getElementById('geminiAnalysisResult');
 
