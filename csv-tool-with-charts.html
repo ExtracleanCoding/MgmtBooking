@@ -1086,8 +1086,8 @@
                     // Use setTimeout to allow UI to update
                     await new Promise(resolve => setTimeout(resolve, 50));
 
-                    parseAndLoadData();
-                    fileInfo.innerHTML = `✓ ${file.name} loaded - ${csvData.length.toLocaleString()} rows, ${headers.length} columns`;
+                    const headerMsg = parseAndLoadData();
+                    fileInfo.innerHTML = `✓ ${file.name} loaded - ${csvData.length.toLocaleString()} data rows, ${headers.length} columns${headerMsg}`;
                     dataSection.style.display = 'block';
                 } catch (error) {
                     fileInfo.innerHTML = `<span style="color: #dc3545;">Error: ${error.message}</span>`;
@@ -1116,6 +1116,7 @@
         function parseAndLoadData() {
             const commentFilter = document.getElementById('commentFilter').value;
             let lines = rawFileContent.split('\n');
+            let headerDetectionMessage = ''; // Store header detection info
 
             // Filter comment lines
             if (commentFilter === 'auto') {
@@ -1156,7 +1157,14 @@
                         headerRowIndex = i;
                         dataStartIndex = i + 1;
                         foundTimestamp = true;
-                        fileInfo.innerHTML += ` <span style="color: #28a745;">(Header found at row ${i + 1})</span>`;
+
+                        // Store detailed feedback about skipped rows
+                        const skippedRows = i;
+                        if (skippedRows > 0) {
+                            headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${i + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
+                        } else {
+                            headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${i + 1})</span>`;
+                        }
                         break;
                     }
                 }
@@ -1175,7 +1183,14 @@
                         headerRowIndex = i;
                         dataStartIndex = i + 1;
                         foundTimestamp = true;
-                        fileInfo.innerHTML += ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1})</span>`;
+
+                        // Store detailed feedback about skipped rows
+                        const skippedRows = i;
+                        if (skippedRows > 0) {
+                            headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
+                        } else {
+                            headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1})</span>`;
+                        }
                         break;
                     }
                 }
@@ -1220,6 +1235,9 @@
             applyFilters();
             renderTable();
             updateStatsInfo();
+
+            // Return header detection message for display
+            return headerDetectionMessage;
         }
 
         function detectDelimiter(line) {
