@@ -1150,24 +1150,56 @@
                 dataStartIndex = 0;
             } else if (headerMode === 'timestamp') {
                 // Find the row where Column A (first column) contains "Timestamp"
+                // and is followed by actual data rows (not metadata)
                 let foundTimestamp = false;
+                let bestTimestampIndex = -1;
+                let bestScore = -1;
+
                 for (let i = 0; i < lines.length; i++) {
                     const row = parseLine(lines[i], delimiter);
                     if (row.length > 0 && row[0].trim().toLowerCase() === 'timestamp') {
-                        headerRowIndex = i;
-                        dataStartIndex = i + 1;
-                        foundTimestamp = true;
+                        // Check if this looks like a real header by examining the next few rows
+                        let score = 0;
+                        const samplesToCheck = Math.min(5, lines.length - i - 1);
 
-                        // Store detailed feedback about skipped rows
-                        const skippedRows = i;
-                        if (skippedRows > 0) {
-                            headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${i + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
-                        } else {
-                            headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${i + 1})</span>`;
+                        for (let j = 1; j <= samplesToCheck; j++) {
+                            if (i + j >= lines.length) break;
+                            const dataRow = parseLine(lines[i + j], delimiter);
+
+                            // Count how many numeric or timestamp-like values are in this row
+                            let numericCount = 0;
+                            for (let k = 0; k < Math.min(dataRow.length, 10); k++) {
+                                const cell = dataRow[k]?.trim() || '';
+                                // Check if it's a number, timestamp, or date
+                                if (!isNaN(parseFloat(cell)) || /^\d{1,4}[\/\-:]\d{1,2}/.test(cell)) {
+                                    numericCount++;
+                                }
+                            }
+                            score += numericCount;
                         }
-                        break;
+
+                        // Prefer headers with higher scores (more numeric data following)
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTimestampIndex = i;
+                        }
                     }
                 }
+
+                if (bestTimestampIndex >= 0) {
+                    headerRowIndex = bestTimestampIndex;
+                    dataStartIndex = bestTimestampIndex + 1;
+                    foundTimestamp = true;
+
+                    // Store detailed feedback about skipped rows
+                    const skippedRows = bestTimestampIndex;
+                    if (skippedRows > 0) {
+                        headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${bestTimestampIndex + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
+                    } else {
+                        headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${bestTimestampIndex + 1})</span>`;
+                    }
+                }
+
                 if (!foundTimestamp) {
                     throw new Error('Could not find "Timestamp" in Column A. Please use a different header mode.');
                 }
@@ -1175,23 +1207,53 @@
                 headerRowIndex = 1;
                 dataStartIndex = 2;
             } else if (headerMode === 'auto') {
-                // First try to find "Timestamp" in Column A
+                // First try to find "Timestamp" in Column A with smart detection
                 let foundTimestamp = false;
+                let bestTimestampIndex = -1;
+                let bestScore = -1;
+
                 for (let i = 0; i < Math.min(200, lines.length); i++) {
                     const row = parseLine(lines[i], delimiter);
                     if (row.length > 0 && row[0].trim().toLowerCase() === 'timestamp') {
-                        headerRowIndex = i;
-                        dataStartIndex = i + 1;
-                        foundTimestamp = true;
+                        // Check if this looks like a real header by examining the next few rows
+                        let score = 0;
+                        const samplesToCheck = Math.min(5, lines.length - i - 1);
 
-                        // Store detailed feedback about skipped rows
-                        const skippedRows = i;
-                        if (skippedRows > 0) {
-                            headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
-                        } else {
-                            headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${i + 1})</span>`;
+                        for (let j = 1; j <= samplesToCheck; j++) {
+                            if (i + j >= lines.length) break;
+                            const dataRow = parseLine(lines[i + j], delimiter);
+
+                            // Count how many numeric or timestamp-like values are in this row
+                            let numericCount = 0;
+                            for (let k = 0; k < Math.min(dataRow.length, 10); k++) {
+                                const cell = dataRow[k]?.trim() || '';
+                                // Check if it's a number, timestamp, or date
+                                if (!isNaN(parseFloat(cell)) || /^\d{1,4}[\/\-:]\d{1,2}/.test(cell)) {
+                                    numericCount++;
+                                }
+                            }
+                            score += numericCount;
                         }
-                        break;
+
+                        // Prefer headers with higher scores (more numeric data following)
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTimestampIndex = i;
+                        }
+                    }
+                }
+
+                if (bestTimestampIndex >= 0) {
+                    headerRowIndex = bestTimestampIndex;
+                    dataStartIndex = bestTimestampIndex + 1;
+                    foundTimestamp = true;
+
+                    // Store detailed feedback about skipped rows
+                    const skippedRows = bestTimestampIndex;
+                    if (skippedRows > 0) {
+                        headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${bestTimestampIndex + 1}, ${skippedRows} metadata row${skippedRows > 1 ? 's' : ''} ignored)</span>`;
+                    } else {
+                        headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${bestTimestampIndex + 1})</span>`;
                     }
                 }
 
