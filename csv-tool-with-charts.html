@@ -670,6 +670,21 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Spinner for loading animation */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4285f4;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -771,6 +786,8 @@
                     <button class="btn btn-success" onclick="exportData('txt')">📝 TXT</button>
                     <button class="btn btn-secondary" onclick="copyToClipboard()">📑 Copy</button>
                     <button class="btn btn-primary" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                    <button class="btn btn-primary" onclick="showGeminiSettings()" title="Configure Gemini AI">🤖 AI Settings</button>
+                    <button class="btn btn-chart" onclick="analyzeWithGemini()" title="Analyze filtered data with AI">✨ AI Analysis</button>
                 </div>
 
                 <div class="table-container" id="tableContainer">
@@ -1002,6 +1019,74 @@
         </div>
     </div>
 
+    <!-- Gemini AI Settings Modal -->
+    <div class="modal" id="geminiSettingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🤖 Google Gemini AI Settings</h2>
+                <button class="close-btn" onclick="closeModal('geminiSettingsModal')">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                        API Key:
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size: 0.9em; font-weight: normal; color: #4285f4;">(Get API Key)</a>
+                    </label>
+                    <input type="password" id="geminiApiKey" placeholder="Enter your Google Gemini API key"
+                           style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 1em;">
+                    <button class="btn btn-sm btn-secondary" onclick="toggleApiKeyVisibility()" style="margin-top: 8px;">
+                        👁️ Show/Hide
+                    </button>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">Model:</label>
+                    <select id="geminiModel" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 1em;">
+                        <option value="">Select a model...</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Recommended)</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Faster)</option>
+                        <option value="gemini-1.0-pro">Gemini 1.0 Pro</option>
+                    </select>
+                    <button class="btn btn-sm btn-info" onclick="fetchGeminiModels()" style="margin-top: 8px;">
+                        🔄 Fetch Available Models
+                    </button>
+                </div>
+
+                <div id="geminiStatusMessage" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
+
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeModal('geminiSettingsModal')">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveGeminiSettings()">💾 Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gemini AI Analysis Results Modal -->
+    <div class="modal" id="geminiAnalysisModal">
+        <div class="modal-content xlarge">
+            <div class="modal-header">
+                <h2>✨ AI Analysis Results</h2>
+                <button class="close-btn" onclick="closeModal('geminiAnalysisModal')">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <div id="geminiAnalysisStatus" style="display: none; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1em;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="spinner"></div>
+                        <span>Analyzing data with Gemini AI...</span>
+                    </div>
+                </div>
+                <div id="geminiAnalysisResult" style="background: #f8f9fa; padding: 20px; border-radius: 8px; min-height: 200px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6;">
+                    Click "✨ AI Analysis" to analyze your filtered data...
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="copyAnalysisToClipboard()">📋 Copy to Clipboard</button>
+                    <button class="btn btn-primary" onclick="closeModal('geminiAnalysisModal')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global state
         let csvData = [];
@@ -1021,6 +1106,10 @@
         let currentChart = null;
         let currentChartType = 'bar';
         let selectedDataColumns = new Set();
+
+        // Gemini AI state
+        let geminiApiKey = '';
+        let geminiModel = '';
 
         // Virtual scrolling state
         let virtualScrollTop = 0;
@@ -2359,6 +2448,304 @@
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.classList.remove('active');
             });
+        });
+
+        // ==================== Gemini AI Functions ====================
+
+        // Load Gemini settings from localStorage
+        function loadGeminiSettings() {
+            const savedApiKey = localStorage.getItem('geminiApiKey');
+            const savedModel = localStorage.getItem('geminiModel');
+
+            if (savedApiKey) {
+                geminiApiKey = savedApiKey;
+                document.getElementById('geminiApiKey').value = savedApiKey;
+            }
+
+            if (savedModel) {
+                geminiModel = savedModel;
+                document.getElementById('geminiModel').value = savedModel;
+            }
+        }
+
+        // Show Gemini settings modal
+        function showGeminiSettings() {
+            loadGeminiSettings();
+            showModal('geminiSettingsModal');
+        }
+
+        // Toggle API key visibility
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('geminiApiKey');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // Fetch available Gemini models from API
+        async function fetchGeminiModels() {
+            const apiKey = document.getElementById('geminiApiKey').value.trim();
+            const statusDiv = document.getElementById('geminiStatusMessage');
+
+            if (!apiKey) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.color = '#856404';
+                statusDiv.textContent = '⚠️ Please enter an API key first';
+                return;
+            }
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#d1ecf1';
+            statusDiv.style.color = '#0c5460';
+            statusDiv.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;"><div class="spinner"></div><span>Fetching models from Gemini API...</span></div>';
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const modelSelect = document.getElementById('geminiModel');
+
+                // Clear existing options except first
+                modelSelect.innerHTML = '<option value="">Select a model...</option>';
+
+                // Add fetched models
+                if (data.models && data.models.length > 0) {
+                    data.models
+                        .filter(model => model.name.includes('gemini') && model.supportedGenerationMethods?.includes('generateContent'))
+                        .forEach(model => {
+                            const modelId = model.name.replace('models/', '');
+                            const option = document.createElement('option');
+                            option.value = modelId;
+                            option.textContent = `${modelId} ${model.displayName ? '(' + model.displayName + ')' : ''}`;
+                            modelSelect.appendChild(option);
+                        });
+
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.textContent = `✅ Successfully fetched ${data.models.length} models`;
+                } else {
+                    throw new Error('No models found');
+                }
+            } catch (error) {
+                console.error('Gemini API Error:', error);
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+
+        // Save Gemini settings to localStorage
+        function saveGeminiSettings() {
+            const apiKey = document.getElementById('geminiApiKey').value.trim();
+            const model = document.getElementById('geminiModel').value;
+            const statusDiv = document.getElementById('geminiStatusMessage');
+
+            if (!apiKey) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.textContent = '❌ Please enter an API key';
+                return;
+            }
+
+            if (!model) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.textContent = '❌ Please select a model';
+                return;
+            }
+
+            // Save to localStorage
+            localStorage.setItem('geminiApiKey', apiKey);
+            localStorage.setItem('geminiModel', model);
+
+            // Update global state
+            geminiApiKey = apiKey;
+            geminiModel = model;
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.color = '#155724';
+            statusDiv.textContent = '✅ Settings saved successfully!';
+
+            setTimeout(() => {
+                closeModal('geminiSettingsModal');
+            }, 1500);
+        }
+
+        // Analyze filtered data with Gemini AI
+        async function analyzeWithGemini() {
+            // Load settings
+            geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+            geminiModel = localStorage.getItem('geminiModel') || '';
+
+            // Check if settings are configured
+            if (!geminiApiKey || !geminiModel) {
+                alert('⚠️ Please configure Gemini AI settings first (click "🤖 AI Settings")');
+                showGeminiSettings();
+                return;
+            }
+
+            // Check if data is loaded
+            if (!csvData || csvData.length === 0) {
+                alert('⚠️ Please load a CSV file first');
+                return;
+            }
+
+            // Open analysis modal and show loading
+            showModal('geminiAnalysisModal');
+            const statusDiv = document.getElementById('geminiAnalysisStatus');
+            const resultDiv = document.getElementById('geminiAnalysisResult');
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#d1ecf1';
+            statusDiv.style.color = '#0c5460';
+            resultDiv.textContent = '';
+
+            try {
+                // Prepare data summary for AI
+                const headerMode = document.getElementById('headerMode').value;
+                const filterCount = columnFilters.length;
+                const dataRows = filteredData.slice(0, 100); // Send first 100 rows of filtered data
+
+                // Build context about filtering
+                let filterDescription = '';
+                if (filterCount > 0) {
+                    filterDescription = 'Filters applied:\n';
+                    columnFilters.forEach(f => {
+                        const colName = headers[f.column] || `Column ${f.column}`;
+                        filterDescription += `- ${colName} ${f.operator} "${f.value}"\n`;
+                    });
+                }
+
+                // Prepare CSV data as text
+                const csvText = [
+                    headers.join(','),
+                    ...dataRows.map(row => row.join(','))
+                ].join('\n');
+
+                // Build prompt
+                const prompt = `You are a data analyst. Analyze the following CSV data and provide insights.
+
+Dataset Information:
+- Header Mode: ${headerMode}
+- Total rows in dataset: ${csvData.length}
+- Filtered rows: ${filteredData.length}
+- Columns: ${headers.length}
+- Sample size: ${dataRows.length} rows (showing first 100 of filtered data)
+
+${filterDescription}
+
+CSV Data:
+${csvText}
+
+Please provide:
+1. **Summary**: Brief overview of the data
+2. **Key Insights**: Notable patterns, trends, or anomalies
+3. **Statistics**: Important statistical observations
+4. **Recommendations**: Suggestions based on the data
+
+Format your response clearly with headings and bullet points.`;
+
+                console.log('Sending request to Gemini API...');
+                console.log('Model:', geminiModel);
+                console.log('Data rows:', dataRows.length);
+
+                // Call Gemini API
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: prompt
+                                }]
+                            }],
+                            generationConfig: {
+                                temperature: 0.7,
+                                topK: 40,
+                                topP: 0.95,
+                                maxOutputTokens: 2048,
+                            }
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Gemini API Response:', data);
+
+                // Extract the generated text
+                if (data.candidates && data.candidates.length > 0) {
+                    const analysis = data.candidates[0].content.parts[0].text;
+
+                    // Hide loading, show result
+                    statusDiv.style.display = 'none';
+                    resultDiv.innerHTML = formatAnalysisResult(analysis);
+                } else {
+                    throw new Error('No analysis generated');
+                }
+
+            } catch (error) {
+                console.error('Gemini Analysis Error:', error);
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.innerHTML = `❌ Error: ${error.message}<br><small>Check console for details</small>`;
+                resultDiv.textContent = '';
+            }
+        }
+
+        // Format analysis result with better styling
+        function formatAnalysisResult(text) {
+            // Convert markdown-style formatting to HTML
+            let formatted = text
+                // Bold **text**
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Bullet points
+                .replace(/^- (.+)$/gm, '• $1')
+                .replace(/^\* (.+)$/gm, '• $1')
+                // Numbered lists
+                .replace(/^(\d+)\. (.+)$/gm, '<strong>$1.</strong> $2')
+                // Headings
+                .replace(/^### (.+)$/gm, '<h4 style="color: #4285f4; margin-top: 20px; margin-bottom: 10px;">$1</h4>')
+                .replace(/^## (.+)$/gm, '<h3 style="color: #4285f4; margin-top: 20px; margin-bottom: 10px;">$1</h3>')
+                .replace(/^# (.+)$/gm, '<h2 style="color: #4285f4; margin-top: 20px; margin-bottom: 10px;">$1</h2>')
+                // Line breaks
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+
+            return formatted;
+        }
+
+        // Copy analysis to clipboard
+        function copyAnalysisToClipboard() {
+            const resultDiv = document.getElementById('geminiAnalysisResult');
+            const text = resultDiv.innerText || resultDiv.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Analysis copied to clipboard!');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                alert('❌ Failed to copy to clipboard');
+            });
+        }
+
+        // Load Gemini settings on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadGeminiSettings();
         });
     </script>
 </body>
