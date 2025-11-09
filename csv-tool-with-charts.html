@@ -1288,23 +1288,48 @@
                 headers = parseLine(lines[headerRowIndex], delimiter);
             }
 
-            // Parse data rows
+            // Parse data rows - skip metadata rows that appear after the header
             csvData = [];
+            const metadataPatterns = ['static', 'metadata', 'info', 'collector', 'system', 'config', 'property'];
+            let skippedMetadataCount = 0;
+
             for (let i = dataStartIndex; i < lines.length; i++) {
                 const values = parseLine(lines[i], delimiter);
                 if (values.length > 0 && values.some(v => v.trim())) {
+                    // Check if this looks like a metadata row (first column starts with metadata keyword)
+                    const firstCol = values[0]?.trim().toLowerCase() || '';
+                    const isMetadata = metadataPatterns.some(pattern => firstCol.startsWith(pattern));
+
+                    // Skip metadata rows when in timestamp or auto mode (with timestamp detection)
+                    if ((headerMode === 'timestamp' || (headerMode === 'auto' && headerRowIndex > 0)) && isMetadata) {
+                        console.log(`⏭️ Skipping metadata row at line ${i}: ${values[0]}`);
+                        skippedMetadataCount++;
+                        continue;
+                    }
+
                     csvData.push(values);
                 }
             }
 
             // Debug: Show what was parsed
-            if (headerMode === 'timestamp') {
-                console.log(`📊 Parsed ${csvData.length} data rows`);
+            if (headerMode === 'timestamp' || (headerMode === 'auto' && headerRowIndex > 0)) {
+                console.log(`📊 Parsed ${csvData.length} data rows (skipped ${skippedMetadataCount} post-header metadata rows)`);
                 console.log('Headers:', headers.slice(0, 5));
                 console.log('First 3 data rows:');
                 csvData.slice(0, 3).forEach((row, idx) => {
                     console.log(`  Row ${idx}: ${row.slice(0, 3).join(' | ')}`);
                 });
+
+                // Update header detection message to include post-header metadata
+                if (skippedMetadataCount > 0 && headerMode === 'timestamp') {
+                    const preHeaderRows = headerRowIndex;
+                    const totalSkipped = preHeaderRows + skippedMetadataCount;
+                    headerDetectionMessage = ` <span style="color: #28a745;">(Header found at row ${headerRowIndex + 1}, ${totalSkipped} metadata row${totalSkipped > 1 ? 's' : ''} ignored: ${preHeaderRows} before header + ${skippedMetadataCount} after header)</span>`;
+                } else if (skippedMetadataCount > 0 && headerMode === 'auto') {
+                    const preHeaderRows = headerRowIndex;
+                    const totalSkipped = preHeaderRows + skippedMetadataCount;
+                    headerDetectionMessage = ` <span style="color: #28a745;">(Auto-detected header at row ${headerRowIndex + 1}, ${totalSkipped} metadata row${totalSkipped > 1 ? 's' : ''} ignored: ${preHeaderRows} before header + ${skippedMetadataCount} after header)</span>`;
+                }
             }
 
             // Initialize
